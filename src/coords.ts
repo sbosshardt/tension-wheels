@@ -1,40 +1,61 @@
 import type { Point2, WheelId } from './types';
 
 /**
- * Map physics global coordinates to diagram display.
- * Diagram uses y-down screen axes with wheel A above wheel B.
+ * Wheel-local / diagram coordinates used by the solver and SVG:
+ * - x positive to the right
+ * - y positive downward (wheel A: toward B; wheel B: same local orientation)
+ * - θ measured from +x toward +y in this frame (90° points toward B on the diagram)
+ *
+ * For engineering reports that prefer y-up, use `toPhysicsYUpLocal`.
  */
-export function physicsToDiagram(p: Point2): Point2 {
+
+/** Map global solver coordinates to SVG (same axes). */
+export function solverToDiagram(p: Point2): Point2 {
   return { x: p.x, y: p.y };
 }
 
-/** Inverse of physicsToDiagram for click picking. */
-export function diagramToPhysicsGlobal(p: Point2): Point2 {
+export function diagramToSolver(p: Point2): Point2 {
   return { x: p.x, y: p.y };
 }
 
-/** Wheel B global origin in physics coordinates. */
-export function wheelBOriginPhysics(dAB: number): Point2 {
+/** Convert wheel-local solver coords to y-up physics display (flip local y). */
+export function toPhysicsYUpLocal(p: Point2): Point2 {
+  return { x: p.x, y: -p.y };
+}
+
+/** Wheel B global origin in solver coordinates. */
+export function wheelBOriginSolver(dAB: number): Point2 {
   return { x: 0, y: dAB };
 }
 
-/** Local wheel coordinates → global physics coordinates. */
-export function localToGlobalPhysics(wheel: WheelId, local: Point2, dAB: number): Point2 {
+/** Local wheel coordinates → global solver coordinates. */
+export function localToGlobalSolver(wheel: WheelId, local: Point2, dAB: number): Point2 {
   if (wheel === 'A') {
     return { x: local.x, y: local.y };
   }
-  const o = wheelBOriginPhysics(dAB);
+  const o = wheelBOriginSolver(dAB);
   return { x: local.x + o.x, y: local.y + o.y };
 }
 
-/** Global physics coordinates → local wheel coordinates. */
-export function globalToLocalPhysics(wheel: WheelId, global: Point2, dAB: number): Point2 {
+/** Global solver coordinates → local wheel coordinates. */
+export function globalToLocalSolver(wheel: WheelId, global: Point2, dAB: number): Point2 {
   if (wheel === 'A') {
     return { x: global.x, y: global.y };
   }
-  const o = wheelBOriginPhysics(dAB);
+  const o = wheelBOriginSolver(dAB);
   return { x: global.x - o.x, y: global.y - o.y };
 }
+
+/** @deprecated Use solverToDiagram */
+export const physicsToDiagram = solverToDiagram;
+/** @deprecated Use diagramToSolver */
+export const diagramToPhysicsGlobal = diagramToSolver;
+/** @deprecated Use localToGlobalSolver */
+export const localToGlobalPhysics = localToGlobalSolver;
+/** @deprecated Use globalToLocalSolver */
+export const globalToLocalPhysics = globalToLocalSolver;
+/** @deprecated Use wheelBOriginSolver */
+export const wheelBOriginPhysics = wheelBOriginSolver;
 
 /** Constrain a point to lie on or inside a wheel disk; snap to rim if outside. */
 export function constrainToWheel(local: Point2, radius: number): Point2 {

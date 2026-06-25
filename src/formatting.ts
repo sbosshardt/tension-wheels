@@ -31,6 +31,11 @@ export function formatCoordinate(x: number, y: number): string {
   return `(${formatNumber(x)}, ${formatNumber(y)})`;
 }
 
+/** Wheel-local coords in y-up physics display (negate y from solver frame). */
+export function formatPhysicsCoordinate(x: number, y: number): string {
+  return formatCoordinate(x, -y);
+}
+
 export function formatForceIj(f: Force2): string {
   const xi = formatNumber(f.x);
   const yi = formatNumber(f.y);
@@ -62,12 +67,12 @@ export function formatSlope(m: number | undefined, thetaDeg?: number): string {
 
 export function formatLineEquationA(m: number | undefined, bA: number | undefined): string {
   if (m === undefined || bA === undefined) return 'N/A';
-  return `y_A = ${formatSlope(m)}·x_A + ${formatNumber(bA)} m`;
+  return `y_A = ${formatSlope(m)}·x_A + ${formatNumber(bA)} m (solver y↓)`;
 }
 
 export function formatLineEquationB(m: number | undefined, bB: number | undefined): string {
   if (m === undefined || bB === undefined) return 'N/A';
-  return `y_B = ${formatSlope(m)}·x_B + ${formatNumber(bB)} m`;
+  return `y_B = ${formatSlope(m)}·x_B + ${formatNumber(bB)} m (solver y↓)`;
 }
 
 export function formatVerticalLine(c: number | undefined): string {

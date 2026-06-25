@@ -13,28 +13,30 @@ A client-side web calculator that visualizes and computes rubber-band **line-of-
 
 ## Coordinate and sign conventions
 
-All numeric results use standard **physics/engineering** coordinates:
+The solver and diagram share one **wheel-local frame** on each wheel:
 
 | Quantity | Convention |
 |----------|------------|
 | **x** | Positive to the right |
-| **y** | Positive **upward** |
-| **Torque τ** | Positive = **counterclockwise** |
-| **Line angle θ** | Measured from **+x** toward **+y** (0° = right, 90° = up) |
+| **y** | Positive **downward** on the diagram (from A toward B) |
+| **Torque τ** | Positive = **counterclockwise** (physics sign; τ = x·F_y − y·F_x with y flipped to physics y↑) |
+| **Line angle θ** | Measured from **+x** toward **+y** in the solver frame (90° points toward B on the diagram) |
 
-Torque from a force at position **r** = (x, y):
+**Wheel placement (diagram / solver global frame):**
+
+- Wheel A origin **O_A** at (0, 0) — drawn at the top
+- Wheel B origin **O_B** at (0, d_AB) — drawn below A
+- Dashed gray lines show each wheel’s local **x-axis** through the axle
+
+**Physics y↑ display:** Results also list coordinates with y negated (engineering y-up). The diagram numbers match the “diagram / y↓” column.
+
+Torque from a force at position **r** = (x, y) with **physics y↑**:
 
 ```text
 τ = x·F_y − y·F_x
 ```
 
-**Wheel placement (global physics frame):**
-
-- Wheel A origin **O_A** at (0, 0)
-- Wheel B origin **O_B** at (0, d_AB) — B is **above** A along +y
-- A point on wheel B in local coordinates (x_B, y_B) has global coordinates (x_B, d_AB + y_B)
-
-The SVG diagram uses **y-down** screen axes and draws wheel A above wheel B; reported numbers remain in the physics frame (y up).
+(use physics y↑ coordinates when checking this sign convention)
 
 ## Formula summary
 

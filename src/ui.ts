@@ -7,6 +7,7 @@ import {
   formatMeters,
   formatNewtons,
   formatNumber,
+  formatPhysicsCoordinate,
   formatSlope,
   formatTorque,
   formatVerticalLine,
@@ -173,7 +174,8 @@ export function createUI(
   const coordYField = numInput('coordY', 'y (m)');
   const coordHint = document.createElement('p');
   coordHint.className = 'hint';
-  coordHint.textContent = 'Click a wheel in the diagram or edit x/y. Points use each wheel’s local frame (y up).';
+  coordHint.textContent =
+    'Click a wheel in the diagram or edit x/y. Coordinates use each wheel’s local frame (y downward, matching the diagram).';
   coordGroup.append(wheelField, coordXField, coordYField, coordHint);
   controlsPanel.appendChild(coordGroup);
 
@@ -182,13 +184,13 @@ export function createUI(
     <details class="how-to-read">
       <summary>How to read this</summary>
       <ul>
-        <li>Physics convention: <strong>x</strong> right, <strong>y</strong> up. Positive torque is counterclockwise.</li>
-        <li>Torque relation: τ = x·F_y − y·F_x (CCW positive).</li>
-        <li>Red dots show the <em>perpendicular lever-arm</em> point on each wheel (local coordinates, y up)—not every chord attachment.</li>
-        <li>For τ_A + τ_B ≠ 0, torques fix the line intercepts b_A and b_B; angle θ sets slope only. The line usually does <em>not</em> pass through the axle.</li>
-        <li>θ = 90° or 270° is invalid unless τ_A + τ_B = 0 (vertical case).</li>
-        <li>Wheel A is at O_A; wheel B is at O_B, a distance d_AB above A along +y.</li>
-        <li>The diagram uses y-down screen axes with wheel A drawn above wheel B; all numeric results use physics coordinates (y up).</li>
+        <li><strong>Diagram numbers</strong> use each wheel’s local frame with <strong>y downward</strong> (toward B). θ is from +x toward that +y (90° points toward B).</li>
+        <li><strong>Physics y↑</strong> in the results table negates y for engineering convention.</li>
+        <li>Torque relation (physics y↑): τ = x·F_y − y·F_x (CCW positive).</li>
+        <li>Dashed gray lines are local <strong>x-axes</strong> through each axle. At θ = 0° or 180°, the line of action is parallel to these axes.</li>
+        <li>The gray <strong>b_A</strong> marker is where the line crosses wheel A’s local y-axis. Torques fix b_A; the line does not pass through the axle unless b_A = 0.</li>
+        <li>Red dots are perpendicular lever-arm points, not every chord attachment.</li>
+        <li>θ = 90° or 270° is invalid unless τ_A + τ_B = 0.</li>
       </ul>
     </details>
     <div id="results-content"></div>
@@ -391,9 +393,12 @@ function renderResults(result: SolveResult, input: InputState): void {
     </section>
     <section class="result-section">
       <h2>Lever-arm points</h2>
+      <p class="hint">Local (y↓) matches the diagram. Physics y↑ negates y.</p>
       <table class="result-table">
-        <tr><td>P_A</td><td>${formatCoordinate(result.pA.x, result.pA.y)}</td></tr>
-        <tr><td>P_B</td><td>${formatCoordinate(result.pB.x, result.pB.y)}</td></tr>
+        <tr><td>P_A (diagram)</td><td>${formatCoordinate(result.pA.x, result.pA.y)}</td></tr>
+        <tr><td>P_A (physics y↑)</td><td>${formatPhysicsCoordinate(result.pA.x, result.pA.y)}</td></tr>
+        <tr><td>P_B (diagram)</td><td>${formatCoordinate(result.pB.x, result.pB.y)}</td></tr>
+        <tr><td>P_B (physics y↑)</td><td>${formatPhysicsCoordinate(result.pB.x, result.pB.y)}</td></tr>
         <tr><td>L_A</td><td>${formatMeters(result.lA)}</td></tr>
         <tr><td>L_B</td><td>${formatMeters(result.lB)}</td></tr>
       </table>

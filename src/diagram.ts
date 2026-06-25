@@ -1,9 +1,9 @@
 import {
   constrainToWheel,
-  diagramToPhysicsGlobal,
-  localToGlobalPhysics,
-  physicsToDiagram,
-  wheelBOriginPhysics,
+  diagramToSolver,
+  localToGlobalSolver,
+  solverToDiagram,
+  wheelBOriginSolver,
 } from './coords';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
 
@@ -48,24 +48,24 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
   const points: Point2[] = [
     { x: -state.rA, y: -state.rA },
     { x: state.rA, y: state.rA },
-    localToGlobalPhysics('B', { x: -state.rB, y: -state.rB }, dAB),
-    localToGlobalPhysics('B', { x: state.rB, y: state.rB }, dAB),
-    wheelBOriginPhysics(dAB),
+    localToGlobalSolver('B', { x: -state.rB, y: -state.rB }, dAB),
+    localToGlobalSolver('B', { x: state.rB, y: state.rB }, dAB),
+    wheelBOriginSolver(dAB),
     { x: 0, y: 0 },
   ];
 
   if (result.kind === 'valid') {
     points.push(
-      localToGlobalPhysics('A', result.pA, dAB),
-      localToGlobalPhysics('B', result.pB, dAB),
+      localToGlobalSolver('A', result.pA, dAB),
+      localToGlobalSolver('B', result.pB, dAB),
     );
   }
 
   if (state.mode === 'coord') {
-    points.push(localToGlobalPhysics(state.coordWheel, { x: state.coordX, y: state.coordY }, dAB));
+    points.push(localToGlobalSolver(state.coordWheel, { x: state.coordX, y: state.coordY }, dAB));
     if (state.secondCoordWheel !== undefined && state.secondCoordX !== undefined && state.secondCoordY !== undefined) {
       points.push(
-        localToGlobalPhysics(
+        localToGlobalSolver(
           state.secondCoordWheel,
           { x: state.secondCoordX, y: state.secondCoordY },
           dAB,
@@ -74,7 +74,7 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
     }
   }
 
-  const svgPoints = points.map(physicsToDiagram);
+  const svgPoints = points.map(solverToDiagram);
   let minX = Math.min(...svgPoints.map((p) => p.x));
   let maxX = Math.max(...svgPoints.map((p) => p.x));
   let minY = Math.min(...svgPoints.map((p) => p.y));
@@ -94,14 +94,14 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
   };
 }
 
-function globalPhysicsToDiagram(global: Point2): Point2 {
-  return physicsToDiagram(global);
+function globalSolverToDiagram(global: Point2): Point2 {
+  return solverToDiagram(global);
 }
 
 function svgToLocalWheel(svg: Point2, wheel: WheelId, dAB: number): Point2 {
-  const global = diagramToPhysicsGlobal(svg);
+  const global = diagramToSolver(svg);
   if (wheel === 'A') return global;
-  const o = wheelBOriginPhysics(dAB);
+  const o = wheelBOriginSolver(dAB);
   return { x: global.x - o.x, y: global.y - o.y };
 }
 
@@ -191,8 +191,8 @@ function drawHighlightRegion(
   dAB: number,
   style: DiagramStyle,
 ): void {
-  const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
-  const center = globalPhysicsToDiagram(origin);
+  const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginSolver(dAB);
+  const center = globalSolverToDiagram(origin);
   const g = el('g', { class: 'highlight-region' });
   const r = radius;
   const stripHalfWidth = radius * 0.04;
@@ -225,8 +225,8 @@ function drawWheel(
   label: string,
   style: DiagramStyle,
 ): void {
-  const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
-  const center = globalPhysicsToDiagram(origin);
+  const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginSolver(dAB);
+  const center = globalSolverToDiagram(origin);
   const g = el('g', { class: `wheel wheel-${wheel.toLowerCase()}` });
   g.appendChild(
     el('circle', {
@@ -268,8 +268,8 @@ function drawPoint(
   fill: string,
   style: DiagramStyle,
 ): void {
-  const global = localToGlobalPhysics(wheel, local, dAB);
-  const p = globalPhysicsToDiagram(global);
+  const global = localToGlobalSolver(wheel, local, dAB);
+  const p = globalSolverToDiagram(global);
   const g = el('g', { class: 'diagram-point' });
   g.appendChild(
     el('circle', {
@@ -289,6 +289,56 @@ function drawPoint(
     fill: '#444',
   });
   text.textContent = label;
+  g.appendChild(text);
+  svg.appendChild(g);
+}
+
+function drawLocalXAxis(
+  svg: SVGSVGElement,
+  wheel: WheelId,
+  radius: number,
+  dAB: number,
+  style: DiagramStyle,
+): void {
+  const g = el('g', { class: 'local-axis' });
+  const left = globalSolverToDiagram(localToGlobalSolver(wheel, { x: -radius, y: 0 }, dAB));
+  const right = globalSolverToDiagram(localToGlobalSolver(wheel, { x: radius, y: 0 }, dAB));
+  g.appendChild(
+    el('line', {
+      x1: left.x,
+      y1: left.y,
+      x2: right.x,
+      y2: right.y,
+      stroke: '#7a8699',
+      'stroke-width': style.gridStroke * 1.8,
+      'stroke-dasharray': `${style.gridStroke * 5} ${style.gridStroke * 3}`,
+    }),
+  );
+  svg.appendChild(g);
+}
+
+/** Mark where the line of action crosses wheel A's local y-axis (0, b_A). */
+function drawInterceptMarker(svg: SVGSVGElement, bA: number, style: DiagramStyle): void {
+  const p = globalSolverToDiagram({ x: 0, y: bA });
+  const g = el('g', { class: 'intercept-marker' });
+  g.appendChild(
+    el('circle', {
+      cx: p.x,
+      cy: p.y,
+      r: style.pointRadius * 0.7,
+      fill: 'none',
+      stroke: '#7a8699',
+      'stroke-width': style.gridStroke * 2,
+    }),
+  );
+  const text = el('text', {
+    x: p.x + style.labelOffset * 0.6,
+    y: p.y,
+    class: 'point-label',
+    'font-size': style.fontSize * 0.85,
+    fill: '#666',
+  });
+  text.textContent = `b_A`;
   g.appendChild(text);
   svg.appendChild(g);
 }
@@ -376,6 +426,12 @@ export class Diagram {
     drawGrid(this.svg, view, style);
     drawWheel(this.svg, 'A', state.rA, state.dAB, 'O_A', style);
     drawWheel(this.svg, 'B', state.rB, state.dAB, 'O_B', style);
+    drawLocalXAxis(this.svg, 'A', state.rA, state.dAB, style);
+    drawLocalXAxis(this.svg, 'B', state.rB, state.dAB, style);
+
+    if (result.kind === 'valid' && !result.isVertical && result.bA !== undefined) {
+      drawInterceptMarker(this.svg, result.bA, style);
+    }
 
     if (result.kind === 'infinite-slopes') {
       const other = result.otherWheel;
@@ -388,8 +444,8 @@ export class Diagram {
 
     if (linePts) {
       const [g1, g2] = linePts;
-      const s1 = globalPhysicsToDiagram(g1);
-      const s2 = globalPhysicsToDiagram(g2);
+      const s1 = globalSolverToDiagram(g1);
+      const s2 = globalSolverToDiagram(g2);
       const stroke =
         result.kind === 'valid'
           ? '#c0392b'
