@@ -46,7 +46,7 @@ Let **S = τ_A + τ_B**.
 Line slope **m = tan(θ)**. Intercepts:
 
 ```text
-b_A = d_AB · τ_A / |S|
+b_A = d_AB · τ_A / S
 b_B = b_A − d_AB          (one global line; B origin is d_AB below A in solver frame)
 ```
 

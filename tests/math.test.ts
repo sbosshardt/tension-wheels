@@ -58,6 +58,49 @@ describe('Example 1: default Case 1 at 45°', () => {
   });
 });
 
+describe('Example 1b: clockwise torques at 45°', () => {
+  const state = base({ thetaDeg: 45, tauA: -1, tauB: -1 });
+  const result = solve(state);
+
+  it('classifies as valid tension (pull) with negated forces', () => {
+    expect(result.kind).toBe('valid');
+    if (result.kind !== 'valid') return;
+    expect(result.S).toBeCloseTo(-2);
+    expect(result.m).toBeCloseTo(-1);
+    expect(result.bA).toBeCloseTo(0.5);
+    expect(result.bB).toBeCloseTo(-0.5);
+    expect(result.thetaADeg).toBeCloseTo(45);
+    expect(result.tension).toBeCloseTo(2.828, 3);
+    expect(result.fA.x).toBeCloseTo(-2);
+    expect(result.fA.y).toBeCloseTo(-2);
+    expect(result.fB.x).toBeCloseTo(2);
+    expect(result.fB.y).toBeCloseTo(2);
+    expect(result.fA.y).toBeLessThan(0);
+    expect(result.fB.y).toBeGreaterThan(0);
+  });
+
+  it('forces produce the applied torques at the lever-arm points', () => {
+    expect(result.kind).toBe('valid');
+    if (result.kind !== 'valid') return;
+    expect(torqueFromForceAt(result.pA, result.fA)).toBeCloseTo(state.tauA);
+    expect(torqueFromForceAt(result.pB, result.fB)).toBeCloseTo(state.tauB);
+  });
+});
+
+describe('Example 1c: clockwise torques at 135°', () => {
+  const state = base({ thetaDeg: 135, tauA: -1, tauB: -1 });
+  const result = solve(state);
+
+  it('classifies as push-only because pull would give CCW torques', () => {
+    expect(result.kind).toBe('push-only');
+    if (result.kind !== 'push-only') return;
+    expect(torqueFromForceAt(result.pA, result.fA)).toBeCloseTo(-1);
+    expect(torqueFromForceAt(result.pB, result.fB)).toBeCloseTo(-1);
+    expect(result.fA.y).toBeGreaterThan(0);
+    expect(result.fB.y).toBeLessThan(0);
+  });
+});
+
 describe('Example 2: horizontal line at 0°', () => {
   const state = base({ thetaDeg: 0 });
   const result = solve(state);
@@ -153,7 +196,7 @@ describe('Coordinate mode', () => {
   });
 });
 
-describe('Tension-only: opposite torque signs select different lines', () => {
+describe('Flipped torques keep the same line of action', () => {
   const pick = {
     rA: 0.2,
     rB: 0.1,
@@ -165,29 +208,25 @@ describe('Tension-only: opposite torque signs select different lines', () => {
   const pos = solve({ ...DEFAULT_INPUT, ...pick, tauA: 2, tauB: 1 });
   const neg = solve({ ...DEFAULT_INPUT, ...pick, tauA: -2, tauB: -1 });
 
-  it('uses different slopes for opposite torque signs', () => {
+  it('uses the same slope when all torques flip sign', () => {
     expect(pos.kind).toBe('valid');
     if (pos.kind !== 'valid') return;
     expect(pos.m).toBeCloseTo(10 / 3);
-    // All torques flipped: line branch changes slope; lever-arm ratio may forbid tension.
-    if (neg.kind === 'valid') {
-      expect(neg.m).toBeCloseTo(-10 / 3);
-      expect(neg.m).not.toBeCloseTo(pos.m!);
-    } else {
-      expect(neg.kind).toBe('no-solution');
-    }
+    expect(neg.kind).toBe('push-only');
+    if (neg.kind !== 'push-only') return;
+    expect(neg.m).toBeCloseTo(10 / 3);
   });
 
-  it('pulls on both wheels instead of pushing apart', () => {
+  it('tension for positive torques and push for flipped torques', () => {
     if (pos.kind !== 'valid') return;
     expect(pos.fA.y).toBeLessThan(0);
     expect(pos.fB.y).toBeGreaterThan(0);
     expect(pos.fA.y * pos.fB.y).toBeLessThan(0);
-    if (neg.kind === 'valid') {
-      expect(neg.fA.y).toBeLessThan(0);
-      expect(neg.fB.y).toBeGreaterThan(0);
-      expect(neg.fA.y * neg.fB.y).toBeLessThan(0);
-    }
+    if (neg.kind !== 'push-only') return;
+    expect(neg.fA.y).toBeGreaterThan(0);
+    expect(neg.fB.y).toBeLessThan(0);
+    expect(torqueFromForceAt(neg.pA, neg.fA)).toBeCloseTo(-2);
+    expect(torqueFromForceAt(neg.pB, neg.fB)).toBeCloseTo(-1);
   });
 });
 

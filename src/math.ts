@@ -91,16 +91,13 @@ type SlopePickResult =
 
 /**
  * Intercepts for finite-slope family (S ≠ 0).
- * b_A uses |S| so opposite torque signs select opposite line branches.
- * b_B = b_A − d_AB enforces one global line: y_A = m·x + b_A in A frame matches
- * y_B = m·x + b_B in B frame (B origin at y = d_AB in solver global).
+ * b_A = d_AB·τ_A/S selects the line branch; b_B = b_A − d_AB enforces one global line.
  */
 export function computeIntercepts(dAB: number, tauA: number, _tauB: number, S: number): {
   bA: number;
   bB: number;
 } {
-  const absS = Math.abs(S);
-  const bA = (dAB * tauA) / absS;
+  const bA = (dAB * tauA) / S;
   return {
     bA,
     bB: bA - dAB,
@@ -146,22 +143,6 @@ export function torqueFromForceAt(pSolver: Point2, fUser: { x: number; y: number
 function torquesExactMatch(tauFromBand: number, tauApplied: number): boolean {
   const tol = EPS * Math.max(1, Math.abs(tauApplied));
   return Math.abs(tauFromBand - tauApplied) <= tol;
-}
-
-function torquesOppositeMatch(tauFromBand: number, tauApplied: number): boolean {
-  const tol = EPS * Math.max(1, Math.abs(tauApplied));
-  return Math.abs(tauFromBand + tauApplied) <= tol;
-}
-
-function torquesMatchApplied(
-  tauFromBand: number,
-  tauApplied: number,
-  S: number,
-): boolean {
-  if (torquesExactMatch(tauFromBand, tauApplied)) return true;
-  // Opposite line direction when S < 0 (legacy vertical / branch convention).
-  if (S < 0 && torquesOppositeMatch(tauFromBand, tauApplied)) return true;
-  return false;
 }
 
 /** True when forces push wheels apart vertically (compression), not tension. */
@@ -236,8 +217,7 @@ function buildFiniteSlopeSolution(
   if (pushForces === undefined) {
     return {
       kind: 'no-solution',
-      reason:
-        'No solution: forces on this line of action cannot balance the applied torques.',
+      reason: 'Forces on this line of action cannot balance the applied torques.',
       overlapWarning,
     };
   }
@@ -276,7 +256,7 @@ function buildVerticalSolution(state: InputState, c: number, overlapWarning: boo
     return {
       kind: 'no-solution',
       reason:
-        'No solution for nonzero torques: the vertical line passes through the axle (c = 0) and has zero moment arm.',
+        'For nonzero torques, the vertical line passes through the axle (c = 0) and has zero moment arm.',
       overlapWarning,
     };
   }
@@ -298,8 +278,8 @@ function buildVerticalSolution(state: InputState, c: number, overlapWarning: boo
   let fA = fAPull;
   let fB = fBPull;
   const pullMatches =
-    torquesMatchApplied(tauAPull, state.tauA, S) &&
-    torquesMatchApplied(tauBPull, state.tauB, S);
+    torquesExactMatch(tauAPull, state.tauA) &&
+    torquesExactMatch(tauBPull, state.tauB);
 
   if (!pullMatches) {
     const fASolverOpp = { x: 0, y: -pullTowardB * tension };
@@ -308,8 +288,8 @@ function buildVerticalSolution(state: InputState, c: number, overlapWarning: boo
     const tauAOpp = torqueFromForceAt(p, fAOpp);
     const tauBOpp = torqueFromForceAt(p, fBOpp);
     if (
-      torquesMatchApplied(tauAOpp, state.tauA, S) &&
-      torquesMatchApplied(tauBOpp, state.tauB, S)
+      torquesExactMatch(tauAOpp, state.tauA) &&
+      torquesExactMatch(tauBOpp, state.tauB)
     ) {
       fA = fAOpp;
       fB = fBOpp;
@@ -350,7 +330,7 @@ function solveVertical(state: InputState, overlapWarning: boolean): SolveResult 
       return {
         kind: 'no-solution',
         reason:
-          'No solution for nonzero torques: a vertical line requires a nonzero x-offset (x ≠ 0 on the selected wheel).',
+          'For nonzero torques, a vertical line requires a nonzero x-offset (x ≠ 0 on the selected wheel).',
         overlapWarning,
       };
     }

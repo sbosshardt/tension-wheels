@@ -185,12 +185,14 @@ export function createUI(
     <details class="how-to-read">
       <summary>How to read this</summary>
       <ul>
-        <li>Each wheel uses a <strong>local frame</strong>: x right, <strong>y up</strong>. θ is measured from +x toward +y.</li>
-        <li>Torque relation: τ = x·F_y − y·F_x (CCW positive).</li>
-        <li>Dashed gray lines are local <strong>x-axes</strong> through each axle. At θ = 0° or 180°, the line of action is parallel to these axes.</li>
-        <li>The gray <strong>b_A</strong> marker is where the line crosses wheel A’s local y-axis. Torques fix b_A; the line does not pass through the axle unless b_A = 0.</li>
-        <li>Red dots are perpendicular lever-arm points, not every chord attachment.</li>
-        <li>θ = 90° or 270° is invalid unless τ_A + τ_B = 0.</li>
+        <li><strong>Sign conventions.</strong> Each wheel uses a local frame: x right, <strong>y up</strong>. Line angle θ is measured from +x toward +y. Torque τ = x·F_y − y·F_x (counterclockwise positive).</li>
+        <li><strong>Wheels.</strong> Wheel A is drawn above B, separated by <em>d_AB</em>. Dashed gray lines are each wheel’s local <strong>x-axis</strong> through its axle.</li>
+        <li><strong>Line intercept.</strong> The hollow gray <strong>b_A</strong> marker is where the line crosses wheel A’s local y-axis (x = 0). Torques fix this offset; the line passes through an axle only when b_A = 0.</li>
+        <li><strong>Attachment points.</strong> Solid dots on the line are perpendicular <strong>lever-arm</strong> feet—the rubber-band contact points—not every point along the chord.</li>
+        <li><strong>Colors (line and dots).</strong> <strong>Tan</strong> = valid tension (pull). <strong>Light teal</strong> = push-only (would need compression). <strong>Light gray</strong> = lever arm exceeds the wheel radius at the given <em>R</em>.</li>
+        <li><strong>Status banner.</strong> Green = valid pull solution. Yellow = push-only, radius warning, or another caution. Red = no solution.</li>
+        <li><strong>Coordinate mode.</strong> Blue dots mark your chosen point(s). A green highlighted region on a wheel means several line angles are possible—click a point with x ≠ 0 there to fix the angle.</li>
+        <li><strong>Vertical lines.</strong> θ = 90° or 270° is valid only when τ_A + τ_B = 0 (equal and opposite torques).</li>
       </ul>
     </details>
     <div id="results-content"></div>
