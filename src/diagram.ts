@@ -7,7 +7,20 @@ import {
   userLocalToSolver,
   wheelBOriginSolver,
 } from './coords';
-import type { InputState, Point2, SolveResult, WheelId } from './types';
+import type { InputState, Point2, PushOnlySolution, SolveResult, ValidSolution, WheelId } from './types';
+import { hasPhysicsOutput } from './types';
+
+/** Diagram colors for line of action and attachment points. */
+const COLOR_VALID = '#B98429';
+const COLOR_PUSH_ONLY = '#9FE6EA';
+const COLOR_RADIUS_MISS = '#C4C4C4';
+
+function physicsAccentColor(result: ValidSolution | PushOnlySolution): string {
+  if (!result.radiusValidA || !result.radiusValidB) {
+    return COLOR_RADIUS_MISS;
+  }
+  return result.kind === 'push-only' ? COLOR_PUSH_ONLY : COLOR_VALID;
+}
 
 export interface DiagramCallbacks {
   onWheelClick?: (wheel: WheelId, local: Point2) => void;
@@ -56,7 +69,7 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
     { x: 0, y: 0 },
   ];
 
-  if (result.kind === 'valid') {
+  if (hasPhysicsOutput(result)) {
     points.push(
       localToGlobalSolver('A', result.pA, dAB),
       localToGlobalSolver('B', result.pB, dAB),
@@ -112,7 +125,7 @@ function linePhysicsPoints(
   dAB: number,
   extent: number,
 ): [Point2, Point2] | null {
-  if (result.kind !== 'valid') return null;
+  if (!hasPhysicsOutput(result)) return null;
 
   if (result.isVertical && result.verticalC !== undefined) {
     const c = result.verticalC;
@@ -431,7 +444,7 @@ export class Diagram {
     drawLocalXAxis(this.svg, 'A', state.rA, state.dAB, style);
     drawLocalXAxis(this.svg, 'B', state.rB, state.dAB, style);
 
-    if (result.kind === 'valid' && !result.isVertical && result.bA !== undefined) {
+    if (hasPhysicsOutput(result) && !result.isVertical && result.bA !== undefined) {
       drawInterceptMarker(this.svg, result.bA, style);
     }
 
@@ -448,12 +461,11 @@ export class Diagram {
       const [g1, g2] = linePts;
       const s1 = globalSolverToDiagram(g1);
       const s2 = globalSolverToDiagram(g2);
-      const stroke =
-        result.kind === 'valid'
-          ? '#c0392b'
-          : result.kind === 'no-solution' || result.kind === 'zero-torques'
-            ? '#999'
-            : '#bbb';
+      const stroke = hasPhysicsOutput(result)
+        ? physicsAccentColor(result)
+        : result.kind === 'no-solution' || result.kind === 'zero-torques'
+          ? '#999'
+          : '#bbb';
       this.svg.appendChild(
         el('line', {
           x1: s1.x,
@@ -463,12 +475,13 @@ export class Diagram {
           stroke,
           'stroke-width': style.lineStroke,
           'stroke-dasharray':
-            result.kind === 'valid' ? undefined : `${style.lineStroke * 3} ${style.lineStroke * 2}`,
+            hasPhysicsOutput(result) ? undefined : `${style.lineStroke * 3} ${style.lineStroke * 2}`,
         }),
       );
     }
 
-    if (result.kind === 'valid') {
+    if (hasPhysicsOutput(result)) {
+      const pointFill = physicsAccentColor(result);
       const pAUser = solverLocalToUser(result.pA);
       const pBUser = solverLocalToUser(result.pB);
       drawPoint(
@@ -477,7 +490,7 @@ export class Diagram {
         'A',
         state.dAB,
         `A: (${formatPt(pAUser.x)}, ${formatPt(pAUser.y)})`,
-        '#c0392b',
+        pointFill,
         style,
       );
       drawPoint(
@@ -486,7 +499,7 @@ export class Diagram {
         'B',
         state.dAB,
         `B: (${formatPt(pBUser.x)}, ${formatPt(pBUser.y)})`,
-        '#c0392b',
+        pointFill,
         style,
       );
     }

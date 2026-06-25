@@ -32,8 +32,7 @@ export interface InputState {
   secondCoordY?: number;
 }
 
-export interface ValidSolution {
-  kind: 'valid';
+export interface PhysicsSolution {
   S: number;
   isVertical: boolean;
   m?: number;
@@ -54,8 +53,17 @@ export interface ValidSolution {
   overlapWarning: boolean;
 }
 
+export interface ValidSolution extends PhysicsSolution {
+  kind: 'valid';
+}
+
+export interface PushOnlySolution extends PhysicsSolution {
+  kind: 'push-only';
+}
+
 export type SolveResult =
   | ValidSolution
+  | PushOnlySolution
   | { kind: 'no-solution'; reason: string; overlapWarning: boolean }
   | {
       kind: 'infinite-slopes';
@@ -67,6 +75,11 @@ export type SolveResult =
     }
   | { kind: 'zero-torques'; overlapWarning: boolean }
   | { kind: 'needs-offset'; overlapWarning: boolean };
+
+/** Result includes line geometry, attachment points, and force output. */
+export function hasPhysicsOutput(result: SolveResult): result is ValidSolution | PushOnlySolution {
+  return result.kind === 'valid' || result.kind === 'push-only';
+}
 
 export const DEFAULT_INPUT: InputState = {
   dAB: 1,

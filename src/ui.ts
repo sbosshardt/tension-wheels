@@ -13,8 +13,9 @@ import {
   forceAngleDeg,
 } from './formatting';
 import { solverLocalToUser } from './coords';
-import { linkedAngleBDeg, sumTorques } from './math';
+import { linkedAngleBDeg, NO_TENSION_ONLY_REASON, sumTorques } from './math';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
+import { hasPhysicsOutput } from './types';
 
 export type InputChangeHandler = (state: InputState) => void;
 
@@ -293,11 +294,11 @@ export function createUI(
     updateResults: (result: SolveResult, input: InputState) => {
       renderResults(result, input);
       const S = sumTorques(input.tauA, input.tauB);
-      if (result.kind === 'valid' && !result.isVertical && result.m !== undefined) {
+      if (hasPhysicsOutput(result) && !result.isVertical && result.m !== undefined) {
         slopeDisplay.textContent = `Slope m = ${formatSlope(-result.m, result.thetaADeg)} · b_A = ${formatNumber(-result.bA!)} m`;
       } else if (result.kind === 'no-solution' && input.mode === 'angle') {
         slopeDisplay.textContent = formatSlope(undefined, input.thetaDeg);
-      } else if (result.kind === 'valid' && result.isVertical) {
+      } else if (hasPhysicsOutput(result) && result.isVertical) {
         slopeDisplay.textContent = 'Slope: Undefined (vertical line)';
       } else {
         slopeDisplay.textContent = '';
@@ -346,6 +347,10 @@ function renderResults(result: SolveResult, input: InputState): void {
 
   if (result.kind === 'no-solution') {
     content.innerHTML = `<p>${result.reason}</p>`;
+    return;
+  }
+
+  if (!hasPhysicsOutput(result)) {
     return;
   }
 
@@ -423,7 +428,12 @@ function renderResults(result: SolveResult, input: InputState): void {
 function statusClass(result: SolveResult): string {
   switch (result.kind) {
     case 'valid':
+      if (!result.radiusValidA || !result.radiusValidB) {
+        return 'warning';
+      }
       return 'ok';
+    case 'push-only':
+      return 'warning';
     case 'zero-torques':
     case 'no-solution':
       return 'error';
@@ -442,7 +452,12 @@ function statusMessage(result: SolveResult): string {
         return 'Valid solution, but the line of action does not intersect one or both wheels at the specified radius.';
       }
       return 'Valid solution.';
+    case 'push-only':
+      return NO_TENSION_ONLY_REASON;
     case 'no-solution':
+      if (result.reason.startsWith('No tension-only')) {
+        return result.reason;
+      }
       return `No solution: ${result.reason}`;
     case 'infinite-slopes':
       return 'Multiple line angles are possible. Choose a point on the highlighted wheel (x ≠ 0).';

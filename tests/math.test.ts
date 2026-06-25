@@ -4,9 +4,10 @@ import {
   slopeFromCoordinatePick,
   solve,
   sumTorques,
+  torqueFromForceAt,
 } from '../src/math';
 import { solverLocalToUser } from '../src/coords';
-import { DEFAULT_INPUT, type InputState } from '../src/types';
+import { DEFAULT_INPUT, hasPhysicsOutput, type InputState } from '../src/types';
 
 function base(overrides: Partial<InputState> = {}): InputState {
   return { ...DEFAULT_INPUT, ...overrides };
@@ -16,9 +17,9 @@ describe('Example 1: default Case 1 at 45°', () => {
   const state = base({ thetaDeg: 45 });
   const result = solve(state);
 
-  it('classifies as valid finite slope', () => {
-    expect(result.kind).toBe('valid');
-    if (result.kind !== 'valid') return;
+  it('classifies as push-only (no rubber-band tension)', () => {
+    expect(result.kind).toBe('push-only');
+    if (result.kind !== 'push-only') return;
     expect(result.isVertical).toBe(false);
     expect(result.S).toBeCloseTo(2);
     expect(result.m).toBeCloseTo(-1);
@@ -30,14 +31,30 @@ describe('Example 1: default Case 1 at 45°', () => {
     expect(result.pA.y).toBeCloseTo(0.25);
     expect(result.pB.x).toBeCloseTo(-0.25);
     expect(result.pB.y).toBeCloseTo(-0.25);
-    expect(result.lA).toBeCloseTo(0.354, 3);
-    expect(result.lB).toBeCloseTo(0.354, 3);
     expect(result.fA.x).toBeCloseTo(2);
     expect(result.fA.y).toBeCloseTo(2);
     expect(result.fB.x).toBeCloseTo(-2);
     expect(result.fB.y).toBeCloseTo(-2);
-    expect(result.radiusValidA).toBe(true);
-    expect(result.radiusValidB).toBe(true);
+    expect(result.fA.y).toBeGreaterThan(0);
+    expect(result.fB.y).toBeLessThan(0);
+  });
+
+  it('places both feet on the global line of action', () => {
+    expect(result.kind).toBe('push-only');
+    if (result.kind !== 'push-only' || result.m === undefined || result.bA === undefined) return;
+    const { m, bA, pA, pB } = result;
+    const d = state.dAB;
+    const gA = { x: pA.x, y: pA.y };
+    const gB = { x: pB.x, y: pB.y + d };
+    expect(gA.y).toBeCloseTo(m * gA.x + bA);
+    expect(gB.y).toBeCloseTo(m * gB.x + bA);
+  });
+
+  it('forces produce the applied torques at the lever-arm points', () => {
+    expect(result.kind).toBe('push-only');
+    if (result.kind !== 'push-only') return;
+    expect(torqueFromForceAt(result.pA, result.fA)).toBeCloseTo(state.tauA);
+    expect(torqueFromForceAt(result.pB, result.fB)).toBeCloseTo(state.tauB);
   });
 });
 
@@ -136,6 +153,44 @@ describe('Coordinate mode', () => {
   });
 });
 
+describe('Tension-only: opposite torque signs select different lines', () => {
+  const pick = {
+    rA: 0.2,
+    rB: 0.1,
+    mode: 'coord' as const,
+    coordX: -0.2,
+    coordY: 0,
+  };
+
+  const pos = solve({ ...DEFAULT_INPUT, ...pick, tauA: 2, tauB: 1 });
+  const neg = solve({ ...DEFAULT_INPUT, ...pick, tauA: -2, tauB: -1 });
+
+  it('uses different slopes for opposite torque signs', () => {
+    expect(pos.kind).toBe('valid');
+    if (pos.kind !== 'valid') return;
+    expect(pos.m).toBeCloseTo(10 / 3);
+    // All torques flipped: line branch changes slope; lever-arm ratio may forbid tension.
+    if (neg.kind === 'valid') {
+      expect(neg.m).toBeCloseTo(-10 / 3);
+      expect(neg.m).not.toBeCloseTo(pos.m!);
+    } else {
+      expect(neg.kind).toBe('no-solution');
+    }
+  });
+
+  it('pulls on both wheels instead of pushing apart', () => {
+    if (pos.kind !== 'valid') return;
+    expect(pos.fA.y).toBeLessThan(0);
+    expect(pos.fB.y).toBeGreaterThan(0);
+    expect(pos.fA.y * pos.fB.y).toBeLessThan(0);
+    if (neg.kind === 'valid') {
+      expect(neg.fA.y).toBeLessThan(0);
+      expect(neg.fB.y).toBeGreaterThan(0);
+      expect(neg.fA.y * neg.fB.y).toBeLessThan(0);
+    }
+  });
+});
+
 describe('User regression: coord pick pulling right and down', () => {
   const state = base({
     rB: 0.2,
@@ -174,13 +229,58 @@ describe('Vertical angles with S ≠ 0', () => {
     expect(result.kind).toBe('no-solution');
   });
 
-  it('still accepts θ = 89° with finite tension', () => {
+  it('reports push-only at θ = 89° when only a pushing solution exists', () => {
     const result = solve(base({ thetaDeg: 89 }));
-    expect(result.kind).toBe('valid');
-    if (result.kind === 'valid') {
-      expect(Number.isFinite(result.tension)).toBe(true);
-      expect(result.tension).toBeLessThan(1e6);
+    expect(result.kind).toBe('push-only');
+  });
+});
+
+describe('Global line constraint', () => {
+  it('keeps b_A − b_B = d_AB for positive and negative S', () => {
+    for (const [tauA, tauB] of [
+      [1, 1],
+      [2, 1],
+      [-2, -1],
+      [2, -1],
+    ] as const) {
+      const S = sumTorques(tauA, tauB);
+      const { bA, bB } = computeIntercepts(1, tauA, tauB, S);
+      expect(bA - bB).toBeCloseTo(1);
     }
+  });
+});
+
+describe('Feet on line for representative angles', () => {
+  const cases: Array<{ thetaDeg: number; kind: 'valid' | 'push-only' }> = [
+    { thetaDeg: 0, kind: 'valid' },
+    { thetaDeg: 45, kind: 'push-only' },
+    { thetaDeg: 120, kind: 'valid' },
+    { thetaDeg: 135, kind: 'valid' },
+  ];
+
+  for (const { thetaDeg, kind } of cases) {
+    it(`θ = ${thetaDeg}° places both feet on y = m·x + b_A`, () => {
+      const result = solve(base({ thetaDeg }));
+      expect(result.kind).toBe(kind);
+      if (!hasPhysicsOutput(result) || result.m === undefined || result.bA === undefined) return;
+      const d = 1;
+      const gA = { x: result.pA.x, y: result.pA.y };
+      const gB = { x: result.pB.x, y: result.pB.y + d };
+      expect(gA.y).toBeCloseTo(result.m * gA.x + result.bA);
+      expect(gB.y).toBeCloseTo(result.m * gB.x + result.bA);
+    });
+  }
+});
+
+describe('Tension-only forces match applied torques', () => {
+  it('at θ = 120° with equal torques', () => {
+    const result = solve(base({ thetaDeg: 120 }));
+    expect(result.kind).toBe('valid');
+    if (result.kind !== 'valid') return;
+    expect(torqueFromForceAt(result.pA, result.fA)).toBeCloseTo(1);
+    expect(torqueFromForceAt(result.pB, result.fB)).toBeCloseTo(1);
+    expect(result.fA.y).toBeLessThan(0);
+    expect(result.fB.y).toBeGreaterThan(0);
   });
 });
 

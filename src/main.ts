@@ -52,11 +52,13 @@ function run(): void {
     pushUrl(state);
     requestAnimationFrame(syncDiagramHeight);
 
-    if (result.kind === 'valid' && !result.isVertical && state.mode === 'coord') {
-      const thetaPartial = { thetaDeg: result.thetaADeg };
-      state = { ...state, ...thetaPartial };
-      if ('setStateFromOutside' in ui && typeof ui.setStateFromOutside === 'function') {
-        ui.setStateFromOutside(thetaPartial);
+    if (result.kind === 'valid' || result.kind === 'push-only') {
+      if (!result.isVertical && state.mode === 'coord') {
+        const thetaPartial = { thetaDeg: result.thetaADeg };
+        state = { ...state, ...thetaPartial };
+        if ('setStateFromOutside' in ui && typeof ui.setStateFromOutside === 'function') {
+          ui.setStateFromOutside(thetaPartial);
+        }
       }
     }
   }

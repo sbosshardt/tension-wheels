@@ -7,6 +7,7 @@ A client-side web calculator that visualizes and computes rubber-band **line-of-
 ## What it does
 
 - Solves for the tension line when **τ_A + τ_B ≠ 0** (finite slope) or the **vertical** case when **τ_A + τ_B = 0** with equal-and-opposite torques.
+- Prefers **tension-only** (pull) force directions; when only a pushing solution balances the torques, reports a **push-only** result with full geometry and forces.
 - Supports **angle mode** (primary control) and **coordinate-first mode** (click a wheel or enter x/y).
 - Shows perpendicular **lever-arm** attachment points on each wheel—not every point along the chord.
 - Shares state via URL query parameters for easy linking.
@@ -45,8 +46,8 @@ Let **S = τ_A + τ_B**.
 Line slope **m = tan(θ)**. Intercepts:
 
 ```text
-b_A = d_AB · τ_A / S
-b_B = −d_AB · τ_B / S     (note b_A = b_B + d_AB)
+b_A = d_AB · τ_A / |S|
+b_B = b_A − d_AB          (one global line; B origin is d_AB below A in solver frame)
 ```
 
 Line equations (local frames):
@@ -62,7 +63,7 @@ Tension magnitude:
 T = |S| · √(1 + m²) / d_AB
 ```
 
-Force on wheel A (B is equal and opposite), in the y↑ frame:
+Force on wheel A (B is equal and opposite), in the y↑ frame. Magnitude **T** is always positive; direction is along the line. The solver tries **pull** directions first; if only a **push** direction matches the applied torques, the result is classified as push-only (see below).
 
 ```text
 F_A = (S / d_AB) · ⟨1, −m⟩
@@ -100,6 +101,16 @@ Given a point (x, y) on wheel A that must lie on **y = m·x + b_A**:
 
 - Require **R_A + R_B < d_AB** for separated wheels (warning if not).
 - Lever-arm distance must satisfy **L_A ≤ R_A** and **L_B ≤ R_B** for the line to intersect each wheel face.
+
+### Solution types & diagram
+
+| Result | Status banner | Line & attachment dots |
+|--------|---------------|-------------------------|
+| **Valid** (tension/pull) | Green | Tan `#B98429` |
+| **Push-only** (would need compression) | Yellow | Light teal `#9FE6EA` |
+| **Valid**, but **L > R** on either wheel | Yellow | Light gray `#C4C4C4` (overrides tan/teal) |
+
+Push-only solutions still show the line of action, lever-arm points, and force components so you can see what would balance the torques, even though a rubber band cannot push.
 
 ## Local development
 

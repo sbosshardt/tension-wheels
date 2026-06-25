@@ -1,4 +1,4 @@
-import { userLocalToSolver } from './coords';
+import { localToGlobalSolver, solverLocalToUser, userLocalToSolver } from './coords';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
 
 export const EPS = 1e-9;
@@ -7,6 +7,9 @@ export const MAX_FINITE_SLOPE = 1e6;
 
 export const NO_VERTICAL_FINITE_SLOPE_REASON =
   'When τ_A + τ_B ≠ 0, the line of action cannot be vertical. θ = 90° and θ = 270° are not valid because the finite slope is undefined. Use equal and opposite torques for a vertical line, or choose another angle.';
+
+export const NO_TENSION_ONLY_REASON =
+  'No tension-only solution: this line of action would require the rubber band to push on a wheel. A rubber band can only pull — try a different angle or torque combination.';
 
 export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -86,14 +89,21 @@ type SlopePickResult =
   | { kind: 'infinite-slopes' }
   | { kind: 'no-solution'; reason: string };
 
-/** Intercepts for finite-slope family (S ≠ 0). */
-export function computeIntercepts(dAB: number, tauA: number, tauB: number, S: number): {
+/**
+ * Intercepts for finite-slope family (S ≠ 0).
+ * b_A uses |S| so opposite torque signs select opposite line branches.
+ * b_B = b_A − d_AB enforces one global line: y_A = m·x + b_A in A frame matches
+ * y_B = m·x + b_B in B frame (B origin at y = d_AB in solver global).
+ */
+export function computeIntercepts(dAB: number, tauA: number, _tauB: number, S: number): {
   bA: number;
   bB: number;
 } {
+  const absS = Math.abs(S);
+  const bA = (dAB * tauA) / absS;
   return {
-    bA: (dAB * tauA) / S,
-    bB: (-dAB * tauB) / S,
+    bA,
+    bB: bA - dAB,
   };
 }
 
@@ -127,11 +137,76 @@ export function leverArmLength(b: number, m: number): number {
   return Math.abs(b) / Math.sqrt(1 + m * m);
 }
 
+/** Torque about wheel origin from force at a foot point (user y↑ local). */
+export function torqueFromForceAt(pSolver: Point2, fUser: { x: number; y: number }): number {
+  const p = solverLocalToUser(pSolver);
+  return p.x * fUser.y - p.y * fUser.x;
+}
+
+function torquesExactMatch(tauFromBand: number, tauApplied: number): boolean {
+  const tol = EPS * Math.max(1, Math.abs(tauApplied));
+  return Math.abs(tauFromBand - tauApplied) <= tol;
+}
+
+function torquesOppositeMatch(tauFromBand: number, tauApplied: number): boolean {
+  const tol = EPS * Math.max(1, Math.abs(tauApplied));
+  return Math.abs(tauFromBand + tauApplied) <= tol;
+}
+
+function torquesMatchApplied(
+  tauFromBand: number,
+  tauApplied: number,
+  S: number,
+): boolean {
+  if (torquesExactMatch(tauFromBand, tauApplied)) return true;
+  // Opposite line direction when S < 0 (legacy vertical / branch convention).
+  if (S < 0 && torquesOppositeMatch(tauFromBand, tauApplied)) return true;
+  return false;
+}
+
+/** True when forces push wheels apart vertically (compression), not tension. */
+function isCompressive(fA: { x: number; y: number }, fB: { x: number; y: number }): boolean {
+  return fA.y > EPS && fB.y < -EPS;
+}
+
+/** Forces along the line; both torques must match exactly. */
+function selectForcesAlongLine(
+  pA: Point2,
+  pB: Point2,
+  m: number,
+  tension: number,
+  state: InputState,
+  requireCompressive: boolean,
+): { fA: { x: number; y: number }; fB: { x: number; y: number } } | undefined {
+  const len = Math.sqrt(1 + m * m);
+  const unitLine = { x: 1 / len, y: m / len };
+  const candidates: Array<{ fASolver: { x: number; y: number } }> = [
+    { fASolver: { x: tension * unitLine.x, y: tension * unitLine.y } },
+    { fASolver: { x: -tension * unitLine.x, y: -tension * unitLine.y } },
+  ];
+
+  for (const { fASolver } of candidates) {
+    const fAUser = { x: fASolver.x, y: -fASolver.y };
+    const fBSolver = { x: -fASolver.x, y: -fASolver.y };
+    const fBUser = { x: fBSolver.x, y: -fBSolver.y };
+    if (
+      isCompressive(fAUser, fBUser) !== requireCompressive ||
+      !torquesExactMatch(torqueFromForceAt(pA, fAUser), state.tauA) ||
+      !torquesExactMatch(torqueFromForceAt(pB, fBUser), state.tauB)
+    ) {
+      continue;
+    }
+    return { fA: fAUser, fB: fBUser };
+  }
+
+  return undefined;
+}
+
 function buildFiniteSlopeSolution(
   state: InputState,
   m: number,
-  bA: number,
-  bB: number,
+  bAIn: number,
+  bBIn: number,
   thetaADeg: number,
   overlapWarning: boolean,
 ): SolveResult {
@@ -140,11 +215,8 @@ function buildFiniteSlopeSolution(
 
   const S = sumTorques(state.tauA, state.tauB);
   const denom = 1 + m * m;
-  const pA = perpendicularFoot(m, bA);
-  const pB = perpendicularFoot(m, bB);
-  const lA = leverArmLength(bA, m);
-  const lB = leverArmLength(bB, m);
-  const tension = (Math.abs(S) * Math.sqrt(denom)) / state.dAB;
+  const len = Math.sqrt(denom);
+  const tension = (Math.abs(S) * len) / state.dAB;
 
   if (!Number.isFinite(tension) || tension > 1e12) {
     return {
@@ -154,14 +226,31 @@ function buildFiniteSlopeSolution(
     };
   }
 
-  const scale = S / state.dAB;
-  const fA = { x: scale, y: -(scale * m) };
-  const fB = { x: -fA.x, y: -fA.y };
+  const bA = bAIn;
+  const bB = bBIn;
+  const pA = perpendicularFoot(m, bA);
+  const pB = perpendicularFoot(m, bB);
+  const tensionForces = selectForcesAlongLine(pA, pB, m, tension, state, false);
+  const pushForces = tensionForces ?? selectForcesAlongLine(pA, pB, m, tension, state, true);
+
+  if (pushForces === undefined) {
+    return {
+      kind: 'no-solution',
+      reason:
+        'No solution: forces on this line of action cannot balance the applied torques.',
+      overlapWarning,
+    };
+  }
+
+  const solutionKind = tensionForces !== undefined ? 'valid' : 'push-only';
+  const { fA, fB } = pushForces;
+  const lA = leverArmLength(bA, m);
+  const lB = leverArmLength(bB, m);
 
   const thetaPhysicsDeg = solverAngleToPhysicsDeg(thetaADeg);
 
   return {
-    kind: 'valid',
+    kind: solutionKind,
     S,
     isVertical: false,
     m,
@@ -193,13 +282,45 @@ function buildVerticalSolution(state: InputState, c: number, overlapWarning: boo
   }
 
   const S = sumTorques(state.tauA, state.tauB);
-  const fAy = state.tauA / c;
-  const fA = { x: 0, y: fAy };
-  const fB = { x: 0, y: -fAy };
-  // Forces are in user y↑ frame; x is unchanged for vertical lines.
-  const tension = Math.abs(fAy);
+  const tension = Math.abs(state.tauA / c);
   const p = { x: c, y: 0 };
   const l = Math.abs(c);
+  const pAGlobal = localToGlobalSolver('A', p, state.dAB);
+  const pBGlobal = localToGlobalSolver('B', p, state.dAB);
+  const towardB = pBGlobal.y - pAGlobal.y;
+  const pullTowardB = towardB >= 0 ? 1 : -1;
+  const fASolverPull = { x: 0, y: pullTowardB * tension };
+  const fAPull = { x: 0, y: -fASolverPull.y };
+  const fBPull = { x: 0, y: -fAPull.y };
+  const tauAPull = torqueFromForceAt(p, fAPull);
+  const tauBPull = torqueFromForceAt(p, fBPull);
+
+  let fA = fAPull;
+  let fB = fBPull;
+  const pullMatches =
+    torquesMatchApplied(tauAPull, state.tauA, S) &&
+    torquesMatchApplied(tauBPull, state.tauB, S);
+
+  if (!pullMatches) {
+    const fASolverOpp = { x: 0, y: -pullTowardB * tension };
+    const fAOpp = { x: 0, y: -fASolverOpp.y };
+    const fBOpp = { x: 0, y: -fAOpp.y };
+    const tauAOpp = torqueFromForceAt(p, fAOpp);
+    const tauBOpp = torqueFromForceAt(p, fBOpp);
+    if (
+      torquesMatchApplied(tauAOpp, state.tauA, S) &&
+      torquesMatchApplied(tauBOpp, state.tauB, S)
+    ) {
+      fA = fAOpp;
+      fB = fBOpp;
+    } else {
+      return {
+        kind: 'no-solution',
+        reason: NO_TENSION_ONLY_REASON,
+        overlapWarning,
+      };
+    }
+  }
 
   return {
     kind: 'valid',
