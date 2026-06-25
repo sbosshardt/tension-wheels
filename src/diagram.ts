@@ -1,7 +1,8 @@
 import {
   constrainToWheel,
+  diagramToPhysicsGlobal,
   localToGlobalPhysics,
-  physicsToSvg,
+  physicsToDiagram,
   wheelBOriginPhysics,
 } from './coords';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
@@ -73,7 +74,7 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
     }
   }
 
-  const svgPoints = points.map(physicsToSvg);
+  const svgPoints = points.map(physicsToDiagram);
   let minX = Math.min(...svgPoints.map((p) => p.x));
   let maxX = Math.max(...svgPoints.map((p) => p.x));
   let minY = Math.min(...svgPoints.map((p) => p.y));
@@ -93,16 +94,12 @@ function computeViewTransform(state: InputState, result: SolveResult): ViewTrans
   };
 }
 
-function globalPhysicsToSvg(global: Point2): Point2 {
-  return physicsToSvg(global);
-}
-
-function svgToGlobalPhysics(svg: Point2): Point2 {
-  return { x: svg.x, y: -svg.y };
+function globalPhysicsToDiagram(global: Point2): Point2 {
+  return physicsToDiagram(global);
 }
 
 function svgToLocalWheel(svg: Point2, wheel: WheelId, dAB: number): Point2 {
-  const global = svgToGlobalPhysics(svg);
+  const global = diagramToPhysicsGlobal(svg);
   if (wheel === 'A') return global;
   const o = wheelBOriginPhysics(dAB);
   return { x: global.x - o.x, y: global.y - o.y };
@@ -195,7 +192,7 @@ function drawHighlightRegion(
   style: DiagramStyle,
 ): void {
   const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
-  const center = globalPhysicsToSvg(origin);
+  const center = globalPhysicsToDiagram(origin);
   const g = el('g', { class: 'highlight-region' });
   const r = radius;
   const stripHalfWidth = radius * 0.04;
@@ -229,7 +226,7 @@ function drawWheel(
   style: DiagramStyle,
 ): void {
   const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
-  const center = globalPhysicsToSvg(origin);
+  const center = globalPhysicsToDiagram(origin);
   const g = el('g', { class: `wheel wheel-${wheel.toLowerCase()}` });
   g.appendChild(
     el('circle', {
@@ -272,7 +269,7 @@ function drawPoint(
   style: DiagramStyle,
 ): void {
   const global = localToGlobalPhysics(wheel, local, dAB);
-  const p = globalPhysicsToSvg(global);
+  const p = globalPhysicsToDiagram(global);
   const g = el('g', { class: 'diagram-point' });
   g.appendChild(
     el('circle', {
@@ -391,8 +388,8 @@ export class Diagram {
 
     if (linePts) {
       const [g1, g2] = linePts;
-      const s1 = globalPhysicsToSvg(g1);
-      const s2 = globalPhysicsToSvg(g2);
+      const s1 = globalPhysicsToDiagram(g1);
+      const s2 = globalPhysicsToDiagram(g2);
       const stroke =
         result.kind === 'valid'
           ? '#c0392b'

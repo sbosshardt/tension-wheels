@@ -34,7 +34,7 @@ Torque from a force at position **r** = (x, y):
 - Wheel B origin **O_B** at (0, d_AB) — B is **above** A along +y
 - A point on wheel B in local coordinates (x_B, y_B) has global coordinates (x_B, d_AB + y_B)
 
-The SVG diagram flips **y** for screen display only; reported numbers remain in the physics frame.
+The SVG diagram uses **y-down** screen axes and draws wheel A above wheel B; reported numbers remain in the physics frame (y up).
 
 ## Formula summary
 

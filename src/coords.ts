@@ -1,8 +1,16 @@
 import type { Point2, WheelId } from './types';
 
-/** Physics: y up. SVG: y down. */
-export function physicsToSvg(p: Point2): Point2 {
-  return { x: p.x, y: -p.y };
+/**
+ * Map physics global coordinates to diagram display.
+ * Diagram uses y-down screen axes with wheel A above wheel B.
+ */
+export function physicsToDiagram(p: Point2): Point2 {
+  return { x: p.x, y: p.y };
+}
+
+/** Inverse of physicsToDiagram for click picking. */
+export function diagramToPhysicsGlobal(p: Point2): Point2 {
+  return { x: p.x, y: p.y };
 }
 
 /** Wheel B global origin in physics coordinates. */

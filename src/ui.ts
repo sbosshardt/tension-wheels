@@ -159,21 +159,21 @@ export function createUI(
   const coordGroup = document.createElement('div');
   coordGroup.className = 'input-group coord-group hidden';
   coordGroup.innerHTML = '<h2>Coordinate mode</h2>';
+  const wheelField = document.createElement('div');
+  wheelField.className = 'field';
+  const wheelLabel = document.createElement('label');
+  wheelLabel.htmlFor = 'coordWheel';
+  wheelLabel.textContent = 'Selected wheel';
   const wheelSelect = document.createElement('select');
   wheelSelect.id = 'coordWheel';
   wheelSelect.innerHTML = '<option value="A">Wheel A</option><option value="B">Wheel B</option>';
+  wheelField.append(wheelLabel, wheelSelect);
   const coordXField = numInput('coordX', 'x (m)');
   const coordYField = numInput('coordY', 'y (m)');
   const coordHint = document.createElement('p');
   coordHint.className = 'hint';
   coordHint.textContent = 'Click a wheel in the diagram or edit x/y. Points use each wheel’s local frame (y up).';
-  coordGroup.append(
-    Object.assign(document.createElement('label'), { htmlFor: 'coordWheel', textContent: 'Selected wheel' }),
-    wheelSelect,
-    coordXField,
-    coordYField,
-    coordHint,
-  );
+  coordGroup.append(wheelField, coordXField, coordYField, coordHint);
   controlsPanel.appendChild(coordGroup);
 
   resultsPanel.innerHTML = `
@@ -185,7 +185,7 @@ export function createUI(
         <li>Torque relation: τ = x·F_y − y·F_x (CCW positive).</li>
         <li>Red dots show the <em>perpendicular lever-arm</em> point on each wheel—not every possible rubber-band attachment on the chord.</li>
         <li>Wheel A is at O_A; wheel B is at O_B, a distance d_AB above A along +y.</li>
-        <li>The diagram flips y for screen display; all numeric results use physics coordinates.</li>
+        <li>The diagram uses y-down screen axes with wheel A drawn above wheel B; all numeric results use physics coordinates (y up).</li>
       </ul>
     </details>
     <div id="results-content"></div>

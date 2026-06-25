@@ -16,6 +16,18 @@ function run(): void {
   });
 
   const diagramHost = app.querySelector('#diagram-host') as HTMLElement;
+  const controlsPanel = app.querySelector('.controls-panel') as HTMLElement;
+  const desktopLayout = window.matchMedia('(min-width: 1101px)');
+
+  function syncDiagramHeight(): void {
+    if (!controlsPanel || !diagramHost) return;
+    if (desktopLayout.matches) {
+      diagramHost.style.height = `${controlsPanel.offsetHeight}px`;
+    } else {
+      diagramHost.style.height = '';
+    }
+  }
+
   const diagram = new Diagram(diagramHost, {
     onWheelClick: (wheel: WheelId, local: Point2) => {
       if (state.mode !== 'coord') return;
@@ -32,12 +44,13 @@ function run(): void {
   function recompute(): void {
     state = ui.getState();
     const result = solve(state);
-  if ('updateResults' in ui && typeof ui.updateResults === 'function') {
+    if ('updateResults' in ui && typeof ui.updateResults === 'function') {
       ui.updateResults(result, state);
     }
     diagram.setCoordMode(state.mode === 'coord');
     diagram.render(state, result);
     pushUrl(state);
+    requestAnimationFrame(syncDiagramHeight);
 
     if (result.kind === 'valid' && !result.isVertical && state.mode === 'coord') {
       const thetaPartial = { thetaDeg: result.thetaADeg };
@@ -49,6 +62,11 @@ function run(): void {
   }
 
   recompute();
+  syncDiagramHeight();
+  window.addEventListener('resize', syncDiagramHeight);
+  if (controlsPanel) {
+    new ResizeObserver(syncDiagramHeight).observe(controlsPanel);
+  }
 }
 
 run();
