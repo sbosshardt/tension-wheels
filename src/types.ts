@@ -18,9 +18,10 @@ export interface InputState {
   tauA: number;
   tauB: number;
   mode: SolveMode;
-  /** Line-of-action angle from wheel A, physics convention (0° = +x, 90° = +y). */
+  /** Line-of-action angle from wheel A (0° = +x, 90° = +y up). */
   thetaDeg: number;
   coordWheel: WheelId;
+  /** Wheel-local x (m), y up. */
   coordX: number;
   coordY: number;
   /** Vertical line offset x = c when S = 0 (angle mode). */

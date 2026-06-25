@@ -7,12 +7,12 @@ import {
   formatMeters,
   formatNewtons,
   formatNumber,
-  formatPhysicsCoordinate,
   formatSlope,
   formatTorque,
   formatVerticalLine,
   forceAngleDeg,
 } from './formatting';
+import { solverLocalToUser } from './coords';
 import { linkedAngleBDeg, sumTorques } from './math';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
 
@@ -175,7 +175,7 @@ export function createUI(
   const coordHint = document.createElement('p');
   coordHint.className = 'hint';
   coordHint.textContent =
-    'Click a wheel in the diagram or edit x/y. Coordinates use each wheel’s local frame (y downward, matching the diagram).';
+    'Click a wheel in the diagram or edit x/y. Coordinates use each wheel’s local frame (x right, y up).';
   coordGroup.append(wheelField, coordXField, coordYField, coordHint);
   controlsPanel.appendChild(coordGroup);
 
@@ -184,9 +184,8 @@ export function createUI(
     <details class="how-to-read">
       <summary>How to read this</summary>
       <ul>
-        <li><strong>Diagram numbers</strong> use each wheel’s local frame with <strong>y downward</strong> (toward B). θ is from +x toward that +y (90° points toward B).</li>
-        <li><strong>Physics y↑</strong> in the results table negates y for engineering convention.</li>
-        <li>Torque relation (physics y↑): τ = x·F_y − y·F_x (CCW positive).</li>
+        <li>Each wheel uses a <strong>local frame</strong>: x right, <strong>y up</strong>. θ is measured from +x toward +y.</li>
+        <li>Torque relation: τ = x·F_y − y·F_x (CCW positive).</li>
         <li>Dashed gray lines are local <strong>x-axes</strong> through each axle. At θ = 0° or 180°, the line of action is parallel to these axes.</li>
         <li>The gray <strong>b_A</strong> marker is where the line crosses wheel A’s local y-axis. Torques fix b_A; the line does not pass through the axle unless b_A = 0.</li>
         <li>Red dots are perpendicular lever-arm points, not every chord attachment.</li>
@@ -295,7 +294,7 @@ export function createUI(
       renderResults(result, input);
       const S = sumTorques(input.tauA, input.tauB);
       if (result.kind === 'valid' && !result.isVertical && result.m !== undefined) {
-        slopeDisplay.textContent = `Slope m = ${formatSlope(result.m, result.thetaADeg)} · b_A = ${formatNumber(result.bA!)} m`;
+        slopeDisplay.textContent = `Slope m = ${formatSlope(-result.m, result.thetaADeg)} · b_A = ${formatNumber(-result.bA!)} m`;
       } else if (result.kind === 'no-solution' && input.mode === 'angle') {
         slopeDisplay.textContent = formatSlope(undefined, input.thetaDeg);
       } else if (result.kind === 'valid' && result.isVertical) {
@@ -359,6 +358,9 @@ function renderResults(result: SolveResult, input: InputState): void {
       ? `<p class="warning-text">The current line of action does not intersect ${radiusNote.join(' and ')} at the specified radius.</p>`
       : '';
 
+  const pAUser = solverLocalToUser(result.pA);
+  const pBUser = solverLocalToUser(result.pB);
+
   const lineSection = result.isVertical
     ? `
       <p>Vertical line: ${formatVerticalLine(result.verticalC)}</p>
@@ -368,10 +370,10 @@ function renderResults(result: SolveResult, input: InputState): void {
     : `
       <p>θ from A: ${formatDegrees(result.thetaADeg)}</p>
       <p>θ from B: ${formatDegrees(result.thetaBDeg)}</p>
-      <p>Slope m: ${formatSlope(result.m, result.thetaADeg)}</p>
+      <p>Slope m: ${formatSlope(result.m !== undefined ? -result.m : undefined, result.thetaADeg)}</p>
       <p>${formatLineEquationA(result.m, result.bA)}</p>
       <p>${formatLineEquationB(result.m, result.bB)}</p>
-      <p>b_A: ${formatMeters(result.bA!)} · b_B: ${formatMeters(result.bB!)}</p>
+      <p>b_A: ${formatMeters(-result.bA!)} · b_B: ${formatMeters(-result.bB!)}</p>
     `;
 
   content.innerHTML = `
@@ -393,12 +395,9 @@ function renderResults(result: SolveResult, input: InputState): void {
     </section>
     <section class="result-section">
       <h2>Lever-arm points</h2>
-      <p class="hint">Local (y↓) matches the diagram. Physics y↑ negates y.</p>
       <table class="result-table">
-        <tr><td>P_A (diagram)</td><td>${formatCoordinate(result.pA.x, result.pA.y)}</td></tr>
-        <tr><td>P_A (physics y↑)</td><td>${formatPhysicsCoordinate(result.pA.x, result.pA.y)}</td></tr>
-        <tr><td>P_B (diagram)</td><td>${formatCoordinate(result.pB.x, result.pB.y)}</td></tr>
-        <tr><td>P_B (physics y↑)</td><td>${formatPhysicsCoordinate(result.pB.x, result.pB.y)}</td></tr>
+        <tr><td>P_A</td><td>${formatCoordinate(pAUser.x, pAUser.y)}</td></tr>
+        <tr><td>P_B</td><td>${formatCoordinate(pBUser.x, pBUser.y)}</td></tr>
         <tr><td>L_A</td><td>${formatMeters(result.lA)}</td></tr>
         <tr><td>L_B</td><td>${formatMeters(result.lB)}</td></tr>
       </table>

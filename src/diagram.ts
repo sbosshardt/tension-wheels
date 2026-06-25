@@ -2,7 +2,9 @@ import {
   constrainToWheel,
   diagramToSolver,
   localToGlobalSolver,
+  solverLocalToUser,
   solverToDiagram,
+  userLocalToSolver,
   wheelBOriginSolver,
 } from './coords';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
@@ -405,7 +407,7 @@ export class Diagram {
     if (wheel && local) {
       const radius = wheel === 'A' ? rA : rB;
       const constrained = constrainToWheel(local, radius);
-      this.callbacks.onWheelClick(wheel, constrained);
+      this.callbacks.onWheelClick(wheel, solverLocalToUser(constrained));
     }
   }
 
@@ -467,12 +469,14 @@ export class Diagram {
     }
 
     if (result.kind === 'valid') {
+      const pAUser = solverLocalToUser(result.pA);
+      const pBUser = solverLocalToUser(result.pB);
       drawPoint(
         this.svg,
         result.pA,
         'A',
         state.dAB,
-        `A: (${formatPt(result.pA.x)}, ${formatPt(result.pA.y)})`,
+        `A: (${formatPt(pAUser.x)}, ${formatPt(pAUser.y)})`,
         '#c0392b',
         style,
       );
@@ -481,16 +485,17 @@ export class Diagram {
         result.pB,
         'B',
         state.dAB,
-        `B: (${formatPt(result.pB.x)}, ${formatPt(result.pB.y)})`,
+        `B: (${formatPt(pBUser.x)}, ${formatPt(pBUser.y)})`,
         '#c0392b',
         style,
       );
     }
 
     if (state.mode === 'coord') {
+      const pickSolver = userLocalToSolver({ x: state.coordX, y: state.coordY });
       drawPoint(
         this.svg,
-        { x: state.coordX, y: state.coordY },
+        pickSolver,
         state.coordWheel,
         state.dAB,
         `pick: (${formatPt(state.coordX)}, ${formatPt(state.coordY)})`,
@@ -502,9 +507,13 @@ export class Diagram {
         state.secondCoordX !== undefined &&
         state.secondCoordY !== undefined
       ) {
+        const pick2Solver = userLocalToSolver({
+          x: state.secondCoordX,
+          y: state.secondCoordY,
+        });
         drawPoint(
           this.svg,
-          { x: state.secondCoordX, y: state.secondCoordY },
+          pick2Solver,
           state.secondCoordWheel,
           state.dAB,
           `pick2: (${formatPt(state.secondCoordX)}, ${formatPt(state.secondCoordY)})`,

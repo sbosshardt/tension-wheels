@@ -1,15 +1,26 @@
 import type { Point2, WheelId } from './types';
 
 /**
- * Wheel-local / diagram coordinates used by the solver and SVG:
+ * User-facing wheel-local coordinates (physics / engineering):
  * - x positive to the right
- * - y positive downward (wheel A: toward B; wheel B: same local orientation)
- * - θ measured from +x toward +y in this frame (90° points toward B on the diagram)
+ * - y positive upward
+ * - θ measured from +x toward +y (CCW positive torque: τ = x·F_y − y·F_x)
  *
- * For engineering reports that prefer y-up, use `toPhysicsYUpLocal`.
+ * Internal solver / SVG coordinates use y positive downward (SVG native).
+ * Convert at boundaries with `userLocalToSolver` / `solverLocalToUser`.
  */
 
-/** Map global solver coordinates to SVG (same axes). */
+/** User (y↑) wheel-local → internal solver (y↓). */
+export function userLocalToSolver(p: Point2): Point2 {
+  return { x: p.x, y: -p.y };
+}
+
+/** Internal solver (y↓) wheel-local → user (y↑). */
+export function solverLocalToUser(p: Point2): Point2 {
+  return { x: p.x, y: -p.y };
+}
+
+/** Map global solver coordinates to SVG (same y↓ axes). */
 export function solverToDiagram(p: Point2): Point2 {
   return { x: p.x, y: p.y };
 }
@@ -18,10 +29,8 @@ export function diagramToSolver(p: Point2): Point2 {
   return { x: p.x, y: p.y };
 }
 
-/** Convert wheel-local solver coords to y-up physics display (flip local y). */
-export function toPhysicsYUpLocal(p: Point2): Point2 {
-  return { x: p.x, y: -p.y };
-}
+/** @deprecated Use solverLocalToUser */
+export const toPhysicsYUpLocal = solverLocalToUser;
 
 /** Wheel B global origin in solver coordinates. */
 export function wheelBOriginSolver(dAB: number): Point2 {

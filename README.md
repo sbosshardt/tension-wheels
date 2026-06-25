@@ -13,30 +13,28 @@ A client-side web calculator that visualizes and computes rubber-band **line-of-
 
 ## Coordinate and sign conventions
 
-The solver and diagram share one **wheel-local frame** on each wheel:
+All user-facing values (inputs, diagram labels, results, URL parameters) use one **wheel-local frame** on each wheel:
 
 | Quantity | Convention |
 |----------|------------|
 | **x** | Positive to the right |
-| **y** | Positive **downward** on the diagram (from A toward B) |
-| **Torque τ** | Positive = **counterclockwise** (physics sign; τ = x·F_y − y·F_x with y flipped to physics y↑) |
-| **Line angle θ** | Measured from **+x** toward **+y** in the solver frame (90° points toward B on the diagram) |
+| **y** | Positive **upward** |
+| **Torque τ** | Positive = **counterclockwise** (τ = x·F_y − y·F_x) |
+| **Line angle θ** | Measured from **+x** toward **+y** |
 
-**Wheel placement (diagram / solver global frame):**
+SVG rendering uses y-down internally; that mapping is hidden from the UI.
+
+**Wheel placement (global frame):**
 
 - Wheel A origin **O_A** at (0, 0) — drawn at the top
 - Wheel B origin **O_B** at (0, d_AB) — drawn below A
 - Dashed gray lines show each wheel’s local **x-axis** through the axle
 
-**Physics y↑ display:** Results also list coordinates with y negated (engineering y-up). The diagram numbers match the “diagram / y↓” column.
-
-Torque from a force at position **r** = (x, y) with **physics y↑**:
+Torque from a force at position **r** = (x, y):
 
 ```text
 τ = x·F_y − y·F_x
 ```
-
-(use physics y↑ coordinates when checking this sign convention)
 
 ## Formula summary
 
@@ -64,11 +62,13 @@ Tension magnitude:
 T = |S| · √(1 + m²) / d_AB
 ```
 
-Force on wheel A (B is equal and opposite):
+Force on wheel A (B is equal and opposite), in the y↑ frame:
 
 ```text
-F_A = (−S / d_AB) · ⟨1, m⟩
+F_A = (S / d_AB) · ⟨1, −m⟩
 ```
+
+where **m** is the internal line slope (displayed slope in results is **−m**).
 
 Perpendicular lever-arm foot from origin to line **y = m·x + b**:
 

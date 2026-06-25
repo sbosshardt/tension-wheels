@@ -1,3 +1,4 @@
+import { userLocalToSolver } from './coords';
 import type { InputState, Point2, SolveResult, WheelId } from './types';
 
 export const EPS = 1e-9;
@@ -31,11 +32,26 @@ export function isNearVerticalAngle(thetaDeg: number): boolean {
 }
 
 /** Finite slope m for angle mode, or null when vertical / undefined. */
-export function slopeForAngle(thetaDeg: number): number | null {
-  if (isNearVerticalAngle(thetaDeg)) return null;
-  const m = slopeFromAngleDeg(thetaDeg);
+/** User-facing angle (y↑) → internal solver angle (y↓). */
+export function physicsAngleToSolverDeg(thetaPhysicsDeg: number): number {
+  return normalizeAngle0to360(-thetaPhysicsDeg);
+}
+
+/** Internal solver angle (y↓) → user-facing angle (y↑). */
+export function solverAngleToPhysicsDeg(thetaSolverDeg: number): number {
+  return normalizeAngle0to360(-thetaSolverDeg);
+}
+
+export function slopeForAngle(thetaSolverDeg: number): number | null {
+  if (isNearVerticalAngle(thetaSolverDeg)) return null;
+  const m = slopeFromAngleDeg(thetaSolverDeg);
   if (!Number.isFinite(m) || Math.abs(m) > MAX_FINITE_SLOPE) return null;
   return m;
+}
+
+/** Slope in internal solver frame from user-facing angle (y↑). */
+export function solverSlopeFromPhysicsAngle(thetaPhysicsDeg: number): number | null {
+  return slopeForAngle(physicsAngleToSolverDeg(thetaPhysicsDeg));
 }
 
 function rejectNonFiniteSlope(
@@ -138,9 +154,11 @@ function buildFiniteSlopeSolution(
     };
   }
 
-  const scale = -S / state.dAB;
-  const fA = { x: scale, y: scale * m };
+  const scale = S / state.dAB;
+  const fA = { x: scale, y: -(scale * m) };
   const fB = { x: -fA.x, y: -fA.y };
+
+  const thetaPhysicsDeg = solverAngleToPhysicsDeg(thetaADeg);
 
   return {
     kind: 'valid',
@@ -149,8 +167,8 @@ function buildFiniteSlopeSolution(
     m,
     bA,
     bB,
-    thetaADeg: normalizeAngle0to360(thetaADeg),
-    thetaBDeg: linkedAngleBDeg(thetaADeg),
+    thetaADeg: thetaPhysicsDeg,
+    thetaBDeg: linkedAngleBDeg(thetaPhysicsDeg),
     tension,
     fA,
     fB,
@@ -178,6 +196,7 @@ function buildVerticalSolution(state: InputState, c: number, overlapWarning: boo
   const fAy = state.tauA / c;
   const fA = { x: 0, y: fAy };
   const fB = { x: 0, y: -fAy };
+  // Forces are in user y↑ frame; x is unchanged for vertical lines.
   const tension = Math.abs(fAy);
   const p = { x: c, y: 0 };
   const l = Math.abs(c);
@@ -226,22 +245,24 @@ function solveVertical(state: InputState, overlapWarning: boolean): SolveResult 
 
 function solveFiniteSlopeAngle(state: InputState, overlapWarning: boolean): SolveResult {
   const S = sumTorques(state.tauA, state.tauB);
-  const m = slopeForAngle(state.thetaDeg);
+  const thetaSolverDeg = physicsAngleToSolverDeg(state.thetaDeg);
+  const m = slopeForAngle(thetaSolverDeg);
   if (m === null) {
     return { kind: 'no-solution', reason: NO_VERTICAL_FINITE_SLOPE_REASON, overlapWarning };
   }
   const { bA, bB } = computeIntercepts(state.dAB, state.tauA, state.tauB, S);
-  return buildFiniteSlopeSolution(state, m, bA, bB, state.thetaDeg, overlapWarning);
+  return buildFiniteSlopeSolution(state, m, bA, bB, thetaSolverDeg, overlapWarning);
 }
 
 function solveFiniteSlopeCoord(state: InputState, overlapWarning: boolean): SolveResult {
   const S = sumTorques(state.tauA, state.tauB);
   const { bA, bB } = computeIntercepts(state.dAB, state.tauA, state.tauB, S);
   const primaryWheel = state.coordWheel;
+  const primaryPick = userLocalToSolver({ x: state.coordX, y: state.coordY });
   const primary = slopeFromCoordinatePick(
     primaryWheel,
-    state.coordX,
-    state.coordY,
+    primaryPick.x,
+    primaryPick.y,
     bA,
     bB,
   );
@@ -262,10 +283,14 @@ function solveFiniteSlopeCoord(state: InputState, overlapWarning: boolean): Solv
     state.secondCoordX !== undefined &&
     state.secondCoordY !== undefined
   ) {
+    const secondaryPick = userLocalToSolver({
+      x: state.secondCoordX,
+      y: state.secondCoordY,
+    });
     const secondary = slopeFromCoordinatePick(
       otherWheel,
-      state.secondCoordX,
-      state.secondCoordY,
+      secondaryPick.x,
+      secondaryPick.y,
       bA,
       bB,
     );
@@ -296,7 +321,7 @@ function solveFiniteSlopeCoord(state: InputState, overlapWarning: boolean): Solv
   };
 }
 
-/** Main solver: pure function, physics coordinates (y up, CCW-positive torque). */
+/** Main solver: inputs use user y↑ local coords; internal math uses y↓ solver frame. */
 export function solve(state: InputState): SolveResult {
   const overlapWarning = hasOverlap(state.rA, state.rB, state.dAB);
 
