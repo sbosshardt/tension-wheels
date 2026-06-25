@@ -119,7 +119,9 @@ This repo includes [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml
 2. In the repo **Settings → Pages**, set **Source** to **GitHub Actions**.
 3. After the workflow succeeds, the site is available at:
 
-   `https://sbosshardt.github.io/tension-wheels/`
+   `https://<your-github-username>.github.io/tension-wheels/`
+
+   Replace `<your-github-username>` with your GitHub account name (for example, this project's maintainer deployment is at `https://sbosshardt.github.io/tension-wheels/`).
 
 The Vite `base` path is set to `/tension-wheels/` for project-page hosting.
 

@@ -17,6 +17,30 @@ interface ViewTransform {
   height: number;
 }
 
+/** Sizes in SVG user units (meters), scaled to the scene. */
+interface DiagramStyle {
+  pointRadius: number;
+  axleRadius: number;
+  lineStroke: number;
+  gridStroke: number;
+  wheelStroke: number;
+  fontSize: number;
+  labelOffset: number;
+}
+
+function diagramStyle(state: InputState): DiagramStyle {
+  const scene = Math.max(state.dAB, state.rA, state.rB, 0.1);
+  return {
+    pointRadius: scene * 0.035,
+    axleRadius: scene * 0.02,
+    lineStroke: scene * 0.018,
+    gridStroke: scene * 0.004,
+    wheelStroke: scene * 0.012,
+    fontSize: scene * 0.11,
+    labelOffset: scene * 0.07,
+  };
+}
+
 function computeViewTransform(state: InputState, result: SolveResult): ViewTransform {
   const dAB = state.dAB;
   const rMax = Math.max(state.rA, state.rB, 0.1);
@@ -110,16 +134,16 @@ function linePhysicsPoints(
 
 function el<K extends keyof SVGElementTagNameMap>(
   tag: K,
-  attrs: Record<string, string | number> = {},
+  attrs: Record<string, string | number | undefined> = {},
 ): SVGElementTagNameMap[K] {
   const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const [k, v] of Object.entries(attrs)) {
-    node.setAttribute(k, String(v));
+    if (v !== undefined) node.setAttribute(k, String(v));
   }
   return node;
 }
 
-function drawGrid(svg: SVGSVGElement, view: ViewTransform): void {
+function drawGrid(svg: SVGSVGElement, view: ViewTransform, style: DiagramStyle): void {
   const g = el('g', { class: 'grid' });
   const step = niceStep(Math.max(view.width, view.height) / 10);
   const xStart = Math.floor(view.minX / step) * step;
@@ -134,6 +158,8 @@ function drawGrid(svg: SVGSVGElement, view: ViewTransform): void {
         y1: view.minY,
         x2: x,
         y2: view.minY + view.height,
+        stroke: '#e4e9f2',
+        'stroke-width': style.gridStroke,
       }),
     );
   }
@@ -144,6 +170,8 @@ function drawGrid(svg: SVGSVGElement, view: ViewTransform): void {
         y1: y,
         x2: view.minX + view.width,
         y2: y,
+        stroke: '#e4e9f2',
+        'stroke-width': style.gridStroke,
       }),
     );
   }
@@ -164,6 +192,7 @@ function drawHighlightRegion(
   wheel: WheelId,
   radius: number,
   dAB: number,
+  style: DiagramStyle,
 ): void {
   const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
   const center = globalPhysicsToSvg(origin);
@@ -184,6 +213,8 @@ function drawHighlightRegion(
       'Z',
     ].join(' '),
     'fill-rule': 'evenodd',
+    stroke: '#27ae60',
+    'stroke-width': style.gridStroke * 2,
   });
   g.appendChild(path);
   svg.appendChild(g);
@@ -195,13 +226,37 @@ function drawWheel(
   radius: number,
   dAB: number,
   label: string,
+  style: DiagramStyle,
 ): void {
   const origin = wheel === 'A' ? { x: 0, y: 0 } : wheelBOriginPhysics(dAB);
   const center = globalPhysicsToSvg(origin);
   const g = el('g', { class: `wheel wheel-${wheel.toLowerCase()}` });
-  g.appendChild(el('circle', { cx: center.x, cy: center.y, r: radius }));
-  g.appendChild(el('circle', { cx: center.x, cy: center.y, r: 3, class: 'axle' }));
-  const text = el('text', { x: center.x - radius * 0.2, y: center.y + radius * 0.35, class: 'origin-label' });
+  g.appendChild(
+    el('circle', {
+      cx: center.x,
+      cy: center.y,
+      r: radius,
+      fill: 'none',
+      stroke: '#4a6fa5',
+      'stroke-width': style.wheelStroke,
+    }),
+  );
+  g.appendChild(
+    el('circle', {
+      cx: center.x,
+      cy: center.y,
+      r: style.axleRadius,
+      fill: '#2c3e50',
+      stroke: 'none',
+    }),
+  );
+  const text = el('text', {
+    x: center.x - radius * 0.2,
+    y: center.y + radius * 0.35,
+    class: 'origin-label',
+    'font-size': style.fontSize,
+    fill: '#444',
+  });
   text.textContent = label;
   g.appendChild(text);
   svg.appendChild(g);
@@ -213,13 +268,29 @@ function drawPoint(
   wheel: WheelId,
   dAB: number,
   label: string,
-  className: string,
+  fill: string,
+  style: DiagramStyle,
 ): void {
   const global = localToGlobalPhysics(wheel, local, dAB);
   const p = globalPhysicsToSvg(global);
-  const g = el('g', { class: className });
-  g.appendChild(el('circle', { cx: p.x, cy: p.y, r: 5 }));
-  const text = el('text', { x: p.x + 8, y: p.y - 8, class: 'point-label' });
+  const g = el('g', { class: 'diagram-point' });
+  g.appendChild(
+    el('circle', {
+      cx: p.x,
+      cy: p.y,
+      r: style.pointRadius,
+      fill,
+      stroke: '#fff',
+      'stroke-width': style.gridStroke * 2,
+    }),
+  );
+  const text = el('text', {
+    x: p.x + style.labelOffset,
+    y: p.y - style.labelOffset,
+    class: 'point-label',
+    'font-size': style.fontSize,
+    fill: '#444',
+  });
   text.textContent = label;
   g.appendChild(text);
   svg.appendChild(g);
@@ -300,40 +371,44 @@ export class Diagram {
     this.rB = state.rB;
     this.view = computeViewTransform(state, result);
     const view = this.view;
+    const style = diagramStyle(state);
 
     this.svg.replaceChildren();
     this.svg.setAttribute('viewBox', `${view.minX} ${view.minY} ${view.width} ${view.height}`);
 
-    drawGrid(this.svg, view);
-    drawWheel(this.svg, 'A', state.rA, state.dAB, 'O_A');
-    drawWheel(this.svg, 'B', state.rB, state.dAB, 'O_B');
+    drawGrid(this.svg, view, style);
+    drawWheel(this.svg, 'A', state.rA, state.dAB, 'O_A', style);
+    drawWheel(this.svg, 'B', state.rB, state.dAB, 'O_B', style);
 
     if (result.kind === 'infinite-slopes') {
       const other = result.otherWheel;
       const radius = other === 'A' ? state.rA : state.rB;
-      drawHighlightRegion(this.svg, other, radius, state.dAB);
+      drawHighlightRegion(this.svg, other, radius, state.dAB, style);
     }
 
     const extent = Math.max(state.dAB, state.rA, state.rB) * 2;
     const linePts = linePhysicsPoints(result, state.dAB, extent);
-    const lineClass =
-      result.kind === 'valid'
-        ? 'line-of-action'
-        : result.kind === 'no-solution' || result.kind === 'zero-torques'
-          ? 'line-of-action error'
-          : 'line-of-action muted';
 
     if (linePts) {
       const [g1, g2] = linePts;
       const s1 = globalPhysicsToSvg(g1);
       const s2 = globalPhysicsToSvg(g2);
+      const stroke =
+        result.kind === 'valid'
+          ? '#c0392b'
+          : result.kind === 'no-solution' || result.kind === 'zero-torques'
+            ? '#999'
+            : '#bbb';
       this.svg.appendChild(
         el('line', {
           x1: s1.x,
           y1: s1.y,
           x2: s2.x,
           y2: s2.y,
-          class: lineClass,
+          stroke,
+          'stroke-width': style.lineStroke,
+          'stroke-dasharray':
+            result.kind === 'valid' ? undefined : `${style.lineStroke * 3} ${style.lineStroke * 2}`,
         }),
       );
     }
@@ -345,7 +420,8 @@ export class Diagram {
         'A',
         state.dAB,
         `A: (${formatPt(result.pA.x)}, ${formatPt(result.pA.y)})`,
-        'attachment-point',
+        '#c0392b',
+        style,
       );
       drawPoint(
         this.svg,
@@ -353,7 +429,8 @@ export class Diagram {
         'B',
         state.dAB,
         `B: (${formatPt(result.pB.x)}, ${formatPt(result.pB.y)})`,
-        'attachment-point',
+        '#c0392b',
+        style,
       );
     }
 
@@ -364,7 +441,8 @@ export class Diagram {
         state.coordWheel,
         state.dAB,
         `pick: (${formatPt(state.coordX)}, ${formatPt(state.coordY)})`,
-        'coord-pick',
+        '#2980b9',
+        style,
       );
       if (
         state.secondCoordWheel !== undefined &&
@@ -377,7 +455,8 @@ export class Diagram {
           state.secondCoordWheel,
           state.dAB,
           `pick2: (${formatPt(state.secondCoordX)}, ${formatPt(state.secondCoordY)})`,
-          'coord-pick',
+          '#2980b9',
+          style,
         );
       }
     }

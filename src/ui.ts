@@ -93,22 +93,29 @@ export function createUI(
   const modeField = document.createElement('fieldset');
   modeField.className = 'mode-toggle';
   modeField.innerHTML = '<legend>Solve mode</legend>';
+  const modeOptions = document.createElement('div');
+  modeOptions.className = 'mode-options';
+
+  const angleLabel = document.createElement('label');
+  angleLabel.className = 'mode-option';
   const angleRadio = document.createElement('input');
   angleRadio.type = 'radio';
   angleRadio.name = 'mode';
   angleRadio.id = 'mode-angle';
   angleRadio.value = 'angle';
+  angleLabel.append(angleRadio, document.createTextNode(' Angle'));
+
+  const coordLabel = document.createElement('label');
+  coordLabel.className = 'mode-option';
   const coordRadio = document.createElement('input');
   coordRadio.type = 'radio';
   coordRadio.name = 'mode';
   coordRadio.id = 'mode-coord';
   coordRadio.value = 'coord';
-  modeField.append(
-    Object.assign(document.createElement('label'), { htmlFor: 'mode-angle', textContent: 'Angle' }),
-    angleRadio,
-    Object.assign(document.createElement('label'), { htmlFor: 'mode-coord', textContent: 'Coordinate' }),
-    coordRadio,
-  );
+  coordLabel.append(coordRadio, document.createTextNode(' Coordinate'));
+
+  modeOptions.append(angleLabel, coordLabel);
+  modeField.append(modeOptions);
   controlsPanel.appendChild(modeField);
 
   const geomGroup = document.createElement('div');
