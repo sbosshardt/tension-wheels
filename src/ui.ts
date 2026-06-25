@@ -79,10 +79,12 @@ export function createUI(
     </header>
     <div class="layout">
       <section class="panel controls-panel" aria-label="Inputs"></section>
-      <section class="panel diagram-panel" aria-label="Diagram">
-        <div id="diagram-host"></div>
-      </section>
-      <section class="panel results-panel" aria-label="Results"></section>
+      <div class="workspace">
+        <section class="panel diagram-panel" aria-label="Diagram">
+          <div id="diagram-host"></div>
+        </section>
+        <section class="panel results-panel" aria-label="Results"></section>
+      </div>
     </div>
   `;
 
