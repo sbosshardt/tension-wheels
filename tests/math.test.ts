@@ -135,6 +135,30 @@ describe('Coordinate mode', () => {
   });
 });
 
+describe('Vertical angles with S ≠ 0', () => {
+  it('rejects θ = 90°', () => {
+    const result = solve(base({ thetaDeg: 90 }));
+    expect(result.kind).toBe('no-solution');
+    if (result.kind === 'no-solution') {
+      expect(result.reason).toMatch(/vertical/i);
+    }
+  });
+
+  it('rejects θ = 270°', () => {
+    const result = solve(base({ thetaDeg: 270 }));
+    expect(result.kind).toBe('no-solution');
+  });
+
+  it('still accepts θ = 89° with finite tension', () => {
+    const result = solve(base({ thetaDeg: 89 }));
+    expect(result.kind).toBe('valid');
+    if (result.kind === 'valid') {
+      expect(Number.isFinite(result.tension)).toBe(true);
+      expect(result.tension).toBeLessThan(1e6);
+    }
+  });
+});
+
 describe('Vertical coordinate mode', () => {
   it('uses x as c when S=0', () => {
     const state = base({

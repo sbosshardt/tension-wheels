@@ -1,4 +1,4 @@
-import { normalizeAngle0to360, radToDeg } from './math';
+import { isNearVerticalAngle, normalizeAngle0to360, radToDeg } from './math';
 import type { Force2 } from './types';
 
 /** Round to 3 decimals and strip trailing zeros. */
@@ -49,15 +49,11 @@ export function forceAngleDeg(f: Force2): number {
 }
 
 const SLOPE_LARGE = 1e4;
-const VERTICAL_ANGLE_TOL = 0.1;
 
 export function formatSlope(m: number | undefined, thetaDeg?: number): string {
   if (m === undefined) return 'Undefined';
-  if (thetaDeg !== undefined) {
-    const a = normalizeAngle0to360(thetaDeg);
-    if (Math.abs(a - 90) < VERTICAL_ANGLE_TOL || Math.abs(a - 270) < VERTICAL_ANGLE_TOL) {
-      return 'Near vertical';
-    }
+  if (thetaDeg !== undefined && isNearVerticalAngle(thetaDeg)) {
+    return 'Undefined (vertical)';
   }
   if (!Number.isFinite(m)) return 'Undefined';
   if (Math.abs(m) > SLOPE_LARGE) return 'Very large';

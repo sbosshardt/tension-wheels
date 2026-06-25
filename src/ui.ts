@@ -6,6 +6,7 @@ import {
   formatLineEquationB,
   formatMeters,
   formatNewtons,
+  formatNumber,
   formatSlope,
   formatTorque,
   formatVerticalLine,
@@ -183,7 +184,9 @@ export function createUI(
       <ul>
         <li>Physics convention: <strong>x</strong> right, <strong>y</strong> up. Positive torque is counterclockwise.</li>
         <li>Torque relation: τ = x·F_y − y·F_x (CCW positive).</li>
-        <li>Red dots show the <em>perpendicular lever-arm</em> point on each wheel—not every possible rubber-band attachment on the chord.</li>
+        <li>Red dots show the <em>perpendicular lever-arm</em> point on each wheel (local coordinates, y up)—not every chord attachment.</li>
+        <li>For τ_A + τ_B ≠ 0, torques fix the line intercepts b_A and b_B; angle θ sets slope only. The line usually does <em>not</em> pass through the axle.</li>
+        <li>θ = 90° or 270° is invalid unless τ_A + τ_B = 0 (vertical case).</li>
         <li>Wheel A is at O_A; wheel B is at O_B, a distance d_AB above A along +y.</li>
         <li>The diagram uses y-down screen axes with wheel A drawn above wheel B; all numeric results use physics coordinates (y up).</li>
       </ul>
@@ -290,7 +293,9 @@ export function createUI(
       renderResults(result, input);
       const S = sumTorques(input.tauA, input.tauB);
       if (result.kind === 'valid' && !result.isVertical && result.m !== undefined) {
-        slopeDisplay.textContent = `Slope m = ${formatSlope(result.m, result.thetaADeg)}`;
+        slopeDisplay.textContent = `Slope m = ${formatSlope(result.m, result.thetaADeg)} · b_A = ${formatNumber(result.bA!)} m`;
+      } else if (result.kind === 'no-solution' && input.mode === 'angle') {
+        slopeDisplay.textContent = formatSlope(undefined, input.thetaDeg);
       } else if (result.kind === 'valid' && result.isVertical) {
         slopeDisplay.textContent = 'Slope: Undefined (vertical line)';
       } else {

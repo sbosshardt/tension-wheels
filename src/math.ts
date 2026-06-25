@@ -1,6 +1,11 @@
-import type { InputState, Point2, SolveResult, ValidSolution, WheelId } from './types';
+import type { InputState, Point2, SolveResult, WheelId } from './types';
 
 export const EPS = 1e-9;
+export const VERTICAL_ANGLE_TOL_DEG = 0.1;
+export const MAX_FINITE_SLOPE = 1e6;
+
+export const NO_VERTICAL_FINITE_SLOPE_REASON =
+  'When τ_A + τ_B ≠ 0, the line of action cannot be vertical. θ = 90° and θ = 270° are not valid because the finite slope is undefined. Use equal and opposite torques for a vertical line, or choose another angle.';
 
 export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -17,6 +22,31 @@ export function normalizeAngle0to360(deg: number): number {
 
 export function slopeFromAngleDeg(thetaDeg: number): number {
   return Math.tan(degToRad(thetaDeg));
+}
+
+export function isNearVerticalAngle(thetaDeg: number): boolean {
+  const a = normalizeAngle0to360(thetaDeg);
+  const dist = Math.min(Math.abs(a - 90), Math.abs(a - 270));
+  return dist < VERTICAL_ANGLE_TOL_DEG;
+}
+
+/** Finite slope m for angle mode, or null when vertical / undefined. */
+export function slopeForAngle(thetaDeg: number): number | null {
+  if (isNearVerticalAngle(thetaDeg)) return null;
+  const m = slopeFromAngleDeg(thetaDeg);
+  if (!Number.isFinite(m) || Math.abs(m) > MAX_FINITE_SLOPE) return null;
+  return m;
+}
+
+function rejectNonFiniteSlope(
+  m: number,
+  thetaDeg: number,
+  overlapWarning: boolean,
+): SolveResult | null {
+  if (isNearVerticalAngle(thetaDeg) || !Number.isFinite(m) || Math.abs(m) > MAX_FINITE_SLOPE) {
+    return { kind: 'no-solution', reason: NO_VERTICAL_FINITE_SLOPE_REASON, overlapWarning };
+  }
+  return null;
 }
 
 export function angleFromSlopeDeg(m: number): number {
@@ -88,7 +118,10 @@ function buildFiniteSlopeSolution(
   bB: number,
   thetaADeg: number,
   overlapWarning: boolean,
-): ValidSolution {
+): SolveResult {
+  const rejected = rejectNonFiniteSlope(m, thetaADeg, overlapWarning);
+  if (rejected) return rejected;
+
   const S = sumTorques(state.tauA, state.tauB);
   const denom = 1 + m * m;
   const pA = perpendicularFoot(m, bA);
@@ -96,6 +129,15 @@ function buildFiniteSlopeSolution(
   const lA = leverArmLength(bA, m);
   const lB = leverArmLength(bB, m);
   const tension = (Math.abs(S) * Math.sqrt(denom)) / state.dAB;
+
+  if (!Number.isFinite(tension) || tension > 1e12) {
+    return {
+      kind: 'no-solution',
+      reason: NO_VERTICAL_FINITE_SLOPE_REASON,
+      overlapWarning,
+    };
+  }
+
   const scale = -S / state.dAB;
   const fA = { x: scale, y: scale * m };
   const fB = { x: -fA.x, y: -fA.y };
@@ -184,7 +226,10 @@ function solveVertical(state: InputState, overlapWarning: boolean): SolveResult 
 
 function solveFiniteSlopeAngle(state: InputState, overlapWarning: boolean): SolveResult {
   const S = sumTorques(state.tauA, state.tauB);
-  const m = slopeFromAngleDeg(state.thetaDeg);
+  const m = slopeForAngle(state.thetaDeg);
+  if (m === null) {
+    return { kind: 'no-solution', reason: NO_VERTICAL_FINITE_SLOPE_REASON, overlapWarning };
+  }
   const { bA, bB } = computeIntercepts(state.dAB, state.tauA, state.tauB, S);
   return buildFiniteSlopeSolution(state, m, bA, bB, state.thetaDeg, overlapWarning);
 }
